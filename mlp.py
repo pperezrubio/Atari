@@ -327,9 +327,9 @@ class Mlp():
 		pass
 
 
-def load2and3(filename):
+def testmlp(filename):
   	"""
-  	Loads data for 2's and 3's, remodel it and save for import by nn.
+  	Test mlp with mnist 2 and 3 digits.
 
   	Args:
   	-----
@@ -343,13 +343,10 @@ def load2and3(filename):
 	target_valid = np.hstack((np.zeros((1, data['valid2'].shape[1])), np.ones((1, data['valid3'].shape[1]))))
 	target_test = np.hstack((np.zeros((1, data['test2'].shape[1])), np.ones((1, data['test3'].shape[1]))))
 
-	return inputs_train, inputs_valid, inputs_test, target_train, target_valid, target_test
+	mlp = Mlp([PerceptronLayer(1, 10), PerceptronLayer(10, 256)])
+	mlp.train(input_train.T, target_train.T, input_valid.T, target_valid.T, input_test.T, target_test.T, {'learn_rate': 0.02, 'epochs': 4})
 
 
 if __name__ == '__main__':
 
-	#Load 2and3 data split.
-	input_train, input_valid, input_test, target_train, target_valid, target_test = load2and3('digits.npz')
-
-	mlp = Mlp([PerceptronLayer(1, 10), PerceptronLayer(10, 256)])
-	mlp.train(input_train.T, target_train.T, input_valid.T, target_valid.T, input_test.T, target_test.T, {'learn_rate': 0.02, 'epochs': 4})
+	testmlp('digits.npz')
