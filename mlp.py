@@ -220,8 +220,6 @@ class Mlp():
 			valid_target = np.array_split(valid[:, :n], m2)
 
 			for i in xrange(m1): #TODO: Modify for mini-batch
-				#print self.predict(train_data[i])
-				#print train_target[i]
 				self.backprop(self.predict(train_data[i]) - train_target[i])
 				self.update(hyperparameters)
 

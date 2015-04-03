@@ -30,8 +30,7 @@ class Qnn(Mlp):
 			layers: List of mlp layers arranged heirarchically.
 		"""
 		if layers[0].o_type == "sum":
-
-			Mlp.__init__(self)
+			Mlp.__init__(self, layers)
 
 			self._theta = []
 			for layer in self.layers:
@@ -41,29 +40,32 @@ class Qnn(Mlp):
 			raise Exception
 
 
-	def train(self, state, next_state, reward, discount, terminate, hyperparameters):
+	def train(self, s, s_prime, r, gamma, term, hyperparameters):
 		"""
-		Train the Qnn on the given states using the provided hyperparameters.
+		Train the Qnn.
 
 		Args:
 		----
-			states 	: A no_states x no_frames x no_feats array of states.
-			rewards : A no_states x 1 array of rewards.
+			s 	: A 1 x no_feats array repr a state.
+			s_prime : A 1 x no_feats array repr a state.
+			r : A double value repr reward gotten by entering next_state.
+			gamma : A discount factor.
+			term : A boolean value: True if next_state is terminal, False otherwise.
 			hyperparameters : A dictionary of training parameters.
 		"""
 		#Predict Q values
-		qs = self.predict(state)
+		qs = self.predict(s)
 
 		#Store current network weights
 		theta = []
 		for i in xrange(len(self.layers)):
 			theta.append({'w': self.layers[i].w, 'b': self.layers[i].b})
 
-		if not terminate:
+		if not term:
 			for i in xrange(len(self.layers)):
 				self.layers[i].w, self.layers[i].b = self._theta[i]['w'], self._theta[i]['b']
 
-			qs_prime = self.predict(next_state)
+			qs_prime = self.predict(s_prime)
 
 			for i in xrange(len(self.layers)):
 				self.layers[i].w, self.layers[i].b = theta[i]['w'], theta[i]['b']
@@ -74,7 +76,5 @@ class Qnn(Mlp):
 		self._theta = theta
 
 		#Change current weights according to update equation
-		target = reward + (discount * np.max(qs_prime))
-		self.backprop(target - qs)
+		self.backprop(r + (gamma * np.max(qs_prime)) - qs)
 		self.update(hyperparameters)
-
