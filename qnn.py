@@ -13,6 +13,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import numpy as np
+from copy import deepcopy as cpy
 from mlp import *
 
 
@@ -29,15 +30,14 @@ class Qnn(Mlp):
 		-----
 			layers: List of mlp layers arranged heirarchically.
 		"""
-		if layers[0].o_type == "sum":
-			Mlp.__init__(self, layers)
-
-			self._theta = []
-			for layer in self.layers:
-				self._theta.append({'w': 0.01 * np.random.randn(layer.w.shape[0], layer.w.shape[1]),
-					'b': 0.01 * np.random.randn(layer.b.shape[0], layer.b.shape[1])})
-		else:
+		if layers[0].o_type != "sum":
 			raise Exception
+
+		Mlp.__init__(self, layers)
+
+		self.layers_old = []
+		for layer in self.layers:
+			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
 
 
 	def train(self, s, s_prime, r, gamma, term, hyperparameters):
@@ -55,25 +55,16 @@ class Qnn(Mlp):
 		"""
 		#Predict Q values
 		qs = self.predict(s)
+		qs_prime = 0
 
-		#Store current network weights
-		theta = []
-		for i in xrange(len(self.layers)):
-			theta.append({'w': self.layers[i].w, 'b': self.layers[i].b})
-
-		if not term:
-			for i in xrange(len(self.layers)):
-				self.layers[i].w, self.layers[i].b = self._theta[i]['w'], self._theta[i]['b']
-
+		if not term: #Predict qs_prime with prev weights.
+			theta = cpy(self.layers)
+			self.layers = self.layers_old
 			qs_prime = self.predict(s_prime)
-
-			for i in xrange(len(self.layers)):
-				self.layers[i].w, self.layers[i].b = theta[i]['w'], theta[i]['b']
-		else:
-			qs_prime = 0
+			self.layers = theta
 
 		#Set prev weights to the current ones.
-		self._theta = theta
+		self.layers_old = cpy(self.layers)
 
 		#Change current weights according to update equation
 		self.backprop(r + (gamma * np.max(qs_prime)) - qs)
