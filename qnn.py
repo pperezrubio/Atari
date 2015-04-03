@@ -35,7 +35,7 @@ class Qnn(Mlp):
 			self._theta = []
 			for layer in self.layers:
 				self._theta.append({'w': 0.01 * np.random.randn(layer.w.shape[0], layer.w.shape[1]),
-									'b': 0.01 * np.random.randn(layer.b.shape[0], layer.b.shape[1])})
+					'b': 0.01 * np.random.randn(layer.b.shape[0], layer.b.shape[1])})
 		else:
 			raise Exception
 
