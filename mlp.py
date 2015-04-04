@@ -49,6 +49,21 @@ def softmax(data):
 	return e/np.sum(e, axis=0).reshape(1, N)
 
 
+def sech2(data):
+	"""
+	Find the hyperbolic secant function over the input data.
+
+	Args:
+	-----
+		data : A k x N array.
+
+	Returns:
+	--------
+		A k x N array.
+	"""
+	return np.square(1 / np.cosh(data))
+
+
 def cross_entropy(preds, labels):
     """
     Compute the cross entropy over the predictions.
@@ -100,7 +115,7 @@ class PerceptronLayer():
 		-----
 			no_outputs: No. output classes.
 			no_inputs: No. input features.
-			outputType: Type of output ('sum', 'sigmoid' or 'softmax')
+			outputType: Type of output ('sum', 'sigmoid', 'tanh' or 'softmax')
 		"""
 		self.o_type = outputType
 		self.w = 0.01 * np.random.randn(no_outputs, no_inputs)
@@ -127,6 +142,10 @@ class PerceptronLayer():
 			z = sigmoid(np.dot(self.w, self.x) + self.b)
 			dods = z * (1 - z)
 			dEds = dEdo * dods
+		elif self.o_type == 'tanh':
+			dEdo = dEds
+			dods = sech2(np.dot(self.w, self.x) + self.b)
+			dEds = dEdo * dods 
 
 		self.dEdw = np.dot(dEds, self.x.T)
 		self.dEdb = np.sum(dEds, axis=1).reshape(self.b.shape)
@@ -161,6 +180,8 @@ class PerceptronLayer():
 
 		if self.o_type == "sum":
 			return s
+		elif self.o_type == "tanh":
+			return np.tanh(s)
 		elif self.o_type == "softmax": 
 			return softmax(s)
 

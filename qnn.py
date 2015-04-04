@@ -15,6 +15,7 @@
 import numpy as np
 from copy import deepcopy as cpy
 from mlp import *
+from util import *
 
 
 class Qnn(Mlp):
@@ -30,9 +31,6 @@ class Qnn(Mlp):
 		-----
 			layers: List of mlp layers arranged heirarchically.
 		"""
-		if layers[0].o_type != "sum":
-			raise Exception
-
 		Mlp.__init__(self, layers)
 
 		self.layers_old = []
@@ -67,5 +65,5 @@ class Qnn(Mlp):
 		self.layers_old = cpy(self.layers)
 
 		#Change current weights according to update equation
-		self.backprop(r + (gamma * np.max(qs_prime)) - qs)
+		self.backprop(qs - r + (gamma * np.max(qs_prime)))
 		self.update(hyperparameters)

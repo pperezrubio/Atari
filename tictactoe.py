@@ -150,7 +150,7 @@ if __name__ == '__main__':
 
 	game = TicTacToe()
 
-	qnn = Qnn([PerceptronLayer(9, 30, "sum"), PerceptronLayer(30, 9)])
+	qnn = Qnn([PerceptronLayer(9, 30, "tanh"), PerceptronLayer(30, 9)])
 	REM = []
 	gamma = 0.55
 	epsilon = 0.4
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 	episode = 1
 	play = True
 
-	while play:
+	while episode < 200000:
 		
 		print "Episode:", episode
 		print game
@@ -184,12 +184,13 @@ if __name__ == '__main__':
 						a = random.randint(0, 8)
 					else:
 						qval = qnn.predict(s)
+						#printMatrix(qval)
 						a = (np.where(qval == np.max(qval))[1])[0]
 					
 				#Store Experience
 				s_prime = game.getState()
 				s_prime = np.array(s_prime).reshape(1, len(s_prime))
-				if game.isTerminal == True:
+				if game.isTerminal() == True:
 					term = True
 				else:
 					term = False
@@ -211,3 +212,7 @@ if __name__ == '__main__':
 
 		game.reset()
 		episode = episode + 1
+
+	#for i in REM:
+	#	print i
+	#	print '\n'
