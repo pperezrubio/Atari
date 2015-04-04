@@ -122,7 +122,6 @@ class PerceptronLayer():
 		-------
 			A no_inputs x N array of input errors.
 		"""
-
 		if self.o_type == 'sigmoid':
 			dEdo = dEds
 			z = sigmoid(np.dot(self.w, self.x) + self.b)
@@ -131,7 +130,7 @@ class PerceptronLayer():
 
 		self.dEdw = np.dot(dEds, self.x.T)
 		self.dEdb = np.sum(dEds, axis=1).reshape(self.b.shape)
-		self.dEdx = np.dot(dEds.T, self.w).T 
+		self.dEdx = np.dot(dEds.T, self.w).T
 		
 		return self.dEdx
 
@@ -181,7 +180,6 @@ class Mlp():
 		-----
 			layers: List of mlp layers arranged heirarchically.
 		"""
-
 		self.layers = deepcopy(layers)
 
 
@@ -198,36 +196,23 @@ class Mlp():
 			valid_target :	no_instance x k_class matrix.array shuffle numpy
 			hyperparameters :	A dictionary of training parameters.
 		"""
+		N, m1 = train_data.shape
+		N, m2 = train_target.shape
 
-		m1, n = train_data.shape
-		m2, n = valid_data.shape
-
-		train = np.hstack((train_data, train_target))
-		valid = np.hstack((valid_data, valid_target))
-
-		#Train the network
+		# Train the network with batch 'cos
+		# online too erratic & mini-batch too much work.
 		epochs = hyperparameters['epochs']
+
 		for epoch in xrange(epochs):
-			
-			#Shuffle data.
-			np.random.shuffle(train)
-			np.random.shuffle(valid)
 
-			#Get back dataset and split into instances
-			train_data = np.array_split(train[:, :n], m1)
-			train_target = np.array_split(train[:, n:], m1)
-			valid_data = np.array_split(valid[:, :n], m2)
-			valid_target = np.array_split(valid[:, :n], m2)
+			self.backprop(self.predict(train_data) - train_target)
+			self.update(hyperparameters)
 
-			for i in xrange(m1): #TODO: Modify for mini-batch
-				self.backprop(self.predict(train_data[i]) - train_target[i])
-				self.update(hyperparameters)
-
-			#Measure networks performance.
-			train_class = self.classify(self.predict(train[:, :n]))
-			valid_class = self.classify(self.predict(valid[:, :n]))
-			ce_train = mce(train_class, train[:, n:])
-			ce_valid = mce(valid_class, valid[:, n:])
+			#Measure network's performance.
+			train_class = self.classify(self.predict(train_data))
+			valid_class = self.classify(self.predict(valid_data))
+			ce_train = mce(train_class, train_target)
+			ce_valid = mce(valid_class, valid_target)
 			print '\rEpoch' + "{:10.2f}".format(epoch) + ' Train MCE:' + "{:10.2f}".format(ce_train) + ' Validation MCE:' + "{:10.2f}".format(ce_valid)
 			if epoch != 0 and epoch % 100 == 0:
   				print '\n'
@@ -249,7 +234,7 @@ class Mlp():
   		"""
   		error = dEds.T
   		for i in xrange(len(self.layers)):
-  			self.layers[i].bprop(error)
+  			error = self.layers[i].bprop(error)
 
 
   	def update(self, parameters):
@@ -334,15 +319,15 @@ def testmlp(filename):
     	filename: Name of the file for 2 and 3.
   	"""
 	data = np.load(filename)
-	inputs_train = np.hstack((data['train2'], data['train3']))
-	inputs_valid = np.hstack((data['valid2'], data['valid3']))
-	inputs_test = np.hstack((data['test2'], data['test3']))
+	input_train = np.hstack((data['train2'], data['train3']))
+	input_valid = np.hstack((data['valid2'], data['valid3']))
+	input_test = np.hstack((data['test2'], data['test3']))
 	target_train = np.hstack((np.zeros((1, data['train2'].shape[1])), np.ones((1, data['train3'].shape[1]))))
 	target_valid = np.hstack((np.zeros((1, data['valid2'].shape[1])), np.ones((1, data['valid3'].shape[1]))))
 	target_test = np.hstack((np.zeros((1, data['test2'].shape[1])), np.ones((1, data['test3'].shape[1]))))
 
 	mlp = Mlp([PerceptronLayer(1, 10), PerceptronLayer(10, 256)])
-	mlp.train(input_train.T, target_train.T, input_valid.T, target_valid.T, input_test.T, target_test.T, {'learn_rate': 0.02, 'epochs': 4})
+	mlp.train(input_train.T, target_train.T, input_valid.T, target_valid.T, input_test.T, target_test.T, {'learn_rate': 0.02, 'epochs': 1600})
 
 
 if __name__ == '__main__':

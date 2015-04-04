@@ -13,6 +13,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import random
+import numpy as np
 from mlp import *
 from qnn import *
 
@@ -36,7 +37,7 @@ class TicTacToe():
 		"""
 		String representation of the game.
 		"""
-		board = ['', '', '', '', '', '', '', '', '']
+		board = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
 
 
 		for i in xrange(len(self.board)):
@@ -45,22 +46,22 @@ class TicTacToe():
 			elif self.board[i] == 1:
 				board[i] = 'X'
 
-		s = ' ' + board[6] + ' | ' + board[7] + ' | ' + board[8] + '\n'
-		s = s + '--------\n'
+		s = ' ' + board[0] + ' | ' + board[1] + ' | ' + board[2] + '\n'
+		s = s + '-----------\n'
 		s = s + ' ' + board[3] + ' | ' + board[4] + ' | ' + board[5] + '\n'
-		s = s + '--------\n'
-		s = s + ' ' + board[0] + ' | ' + board[1] + ' | ' + board[2] + '\n'
+		s = s + '-----------\n'
+		s = s + ' ' + board[6] + ' | ' + board[7] + ' | ' + board[8] + '\n'
 
 		return s
 
 
-	def play(self, player):
+	def play(self, tile, player):
 		"""
 		Make a move by the following player on the specified tile.
 		"""
-		if self.board[tile] != 0 and player == 'X':
+		if tile in range(len(self.board)) and self.board[tile] == 0 and player == 'X':
 			self.board[tile] = 1
-		elif self.board[tile] != 0 and player == 'O':
+		elif tile in range(len(self.board)) and self.board[tile] == 0 and player == 'O':
 			self.board[tile] = 0.5
 		else:
 			return -1
@@ -134,42 +135,79 @@ class TicTacToe():
 		if self.getReward('X') == 1 or self.getReward('O') == 1:
 			return True
 
-		if 0 in self.board:
+		if 0 not in self.board:
 			return True
 
 		return False
 
 
-	def getHumanMove(self):
-		pass
+	def reset(self):
+		self.board = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 
 
 if __name__ == '__main__':
 
 	game = TicTacToe()
-	#qnn = Qnn([PerceptronLayer(9, 300, "sum"), PerceptronLayer(300, 9)])
 
-	while True:
-		episode = 1
+	qnn = Qnn([PerceptronLayer(9, 30, "sum"), PerceptronLayer(30, 9)])
+	REM = []
+	gamma = 0.55
+	epsilon = 0.4
+	params = {'learn_rate': 0.02}
+	episode = 1
+	play = True
+
+	while play:
+		
 		print "Episode:", episode
 		print game
 
 		while not game.isTerminal():
 			#For now, assume human is always player 1
-			print "Player 1 to play."
-			game.play(game.getHumanMove(), 1)
+			m = -1
+			while game.play(m, 'X') == -1:
+				#m = int(raw_input('Enter a position to play: '))
+				m = random.randint(0, 8)
+			print "Player 1 plays..\n"
 			print game
+
 			if not game.isTerminal():
-				print "Player 2 to play."
-				game.play(game.getHumanMove(), 0)
+				s = game.getState()
+				s = np.array(s).reshape(1, len(s)) #Get current state
+
+				a = -1
+				while game.play(a, 'O') == -1:
+					#Use epsilon greedy strategy
+					x = random.uniform(0, 1)
+					if x <= epsilon:
+						a = random.randint(0, 8)
+					else:
+						qval = qnn.predict(s)
+						a = (np.where(qval == np.max(qval))[1])[0]
+					
+				#Store Experience
+				s_prime = game.getState()
+				s_prime = np.array(s_prime).reshape(1, len(s_prime))
+				if game.isTerminal == True:
+					term = True
+				else:
+					term = False
+				REM.append((s, s_prime, a, game.getReward('O'), gamma, term))
+
+				#Sample random experience
+				e = REM[random.randint(0, len(REM) - 1)]
+				qnn.train(e[0], e[1], e[3], e[4], e[5], params)
+
+				print "Neural net plays...\n"
 				print game
 
 		if game.getReward('X') == 1:
-			print "Player 1 wins."
+			print "Player 1 wins.\n"
 		elif game.getReward('O') == 1:
-			print "Player 2 wins."
+			print "Player 2 wins.\n"
 		else:
-			print "Draw."
+			print "Draw.\n"
 
+		game.reset()
 		episode = episode + 1
