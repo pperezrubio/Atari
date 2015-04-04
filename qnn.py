@@ -65,5 +65,5 @@ class Qnn(Mlp):
 		self.layers_old = cpy(self.layers)
 
 		#Change current weights according to update equation
-		self.backprop(qs - r + (gamma * np.max(qs_prime)))
+		self.backprop(qs - r - (gamma * np.max(qs_prime)))
 		self.update(hyperparameters)

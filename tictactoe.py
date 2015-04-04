@@ -150,15 +150,17 @@ if __name__ == '__main__':
 
 	game = TicTacToe()
 
-	qnn = Qnn([PerceptronLayer(9, 30, "tanh"), PerceptronLayer(30, 9)])
-	REM = []
+	qnn = Qnn([PerceptronLayer(9, 60, "tanh"), PerceptronLayer(60, 9)])
+	REM = {}
 	gamma = 0.55
-	epsilon = 0.4
-	params = {'learn_rate': 0.02}
+	epsilon = 0.9
+	params = {'learn_rate': 0.2}
 	episode = 1
+	no_episodes = 5000
 	play = True
+	nn_win_count = 0
 
-	while episode < 200000:
+	while episode < no_episodes:
 		
 		print "Episode:", episode
 		print game
@@ -180,7 +182,9 @@ if __name__ == '__main__':
 				while game.play(a, 'O') == -1:
 					#Use epsilon greedy strategy
 					x = random.uniform(0, 1)
-					if x <= epsilon:
+					temp = episode * (epsilon - 0.1)/no_episodes
+
+					if x <= (epsilon - temp):
 						a = random.randint(0, 8)
 					else:
 						qval = qnn.predict(s)
@@ -194,10 +198,10 @@ if __name__ == '__main__':
 					term = True
 				else:
 					term = False
-				REM.append((s, s_prime, a, game.getReward('O'), gamma, term))
+				REM[(tuple(s.flat), a)] = (s, s_prime, a, game.getReward('O'), gamma, term)
 
 				#Sample random experience
-				e = REM[random.randint(0, len(REM) - 1)]
+				e = REM.values()[random.randint(0, len(REM.values()) - 1)]
 				qnn.train(e[0], e[1], e[3], e[4], e[5], params)
 
 				print "Neural net plays...\n"
@@ -207,12 +211,16 @@ if __name__ == '__main__':
 			print "Player 1 wins.\n"
 		elif game.getReward('O') == 1:
 			print "Player 2 wins.\n"
+			nn_win_count = nn_win_count + 1
 		else:
 			print "Draw.\n"
 
 		game.reset()
 		episode = episode + 1
 
+
+	avg_win = nn_win_count/float(no_episodes)
+	print "On average the neural net won: ", avg_win
 	#for i in REM:
 	#	print i
 	#	print '\n'
