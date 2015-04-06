@@ -38,7 +38,7 @@ class Qnn(Mlp):
 			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
 
 
-	def train(self, s, s_prime, r, gamma, term, hyperparameters):
+	def train(self, s, s_prime, a, r, gamma, term, hyperparameters):
 		"""
 		Train the Qnn.
 
@@ -65,5 +65,7 @@ class Qnn(Mlp):
 		self.layers_old = cpy(self.layers)
 
 		#Change current weights according to update equation
-		self.backprop(qs - r - (gamma * np.max(qs_prime)))
+		dE = np.zeros(qs.shape)
+		dE[0, a] = qs[0, a] - r - gamma * np.max(qs_prime) #TODO: Pass term as binary.
+		self.backprop(dE)
 		self.update(hyperparameters)
