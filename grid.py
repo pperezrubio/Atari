@@ -119,11 +119,11 @@ if __name__ == '__main__':
 
 	qnn = Qnn([PerceptronLayer(4, 16, "sum")])
 	REM = {}
-	gamma = 0.55
+	gamma = 0.99
 	epsilon = 0.9
 	params = {'learn_rate': 0.2}
 	episode = 1
-	no_episodes = 1000
+	no_episodes = 100
 	play = True
 	nn_win_count = 0
 
@@ -143,8 +143,10 @@ if __name__ == '__main__':
 				temp = episode * (epsilon - 0.1)/no_episodes
 
 				if x <= (epsilon - temp):
+					print "random action"
 					a = random.randint(0, 3)
 				else:
+					print "Net's action"
 					qval = qnn.predict(s)
 					a = (np.where(qval == np.max(qval))[1])[0]
 					
@@ -171,3 +173,7 @@ if __name__ == '__main__':
 
 		game.reset()
 		episode = episode + 1
+
+	#for i in REM.values():
+	#	print i
+	#	print '\n'

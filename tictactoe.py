@@ -150,13 +150,13 @@ if __name__ == '__main__':
 
 	game = TicTacToe()
 
-	qnn = Qnn([PerceptronLayer(9, 60, "tanh"), PerceptronLayer(60, 9)])
+	qnn = Qnn([PerceptronLayer(9, 100, "sum"), PerceptronLayer(100, 9)])
 	REM = {}
-	gamma = 0.55
+	gamma = 0.99
 	epsilon = 0.9
-	params = {'learn_rate': 0.2}
+	params = {'learn_rate': 0.05}
 	episode = 1
-	no_episodes = 5000
+	no_episodes = 1000
 	play = True
 	nn_win_count = 0
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
 
 				#Sample random experience
 				e = REM.values()[random.randint(0, len(REM.values()) - 1)]
-				qnn.train(e[0], e[1], e[3], e[4], e[5], params)
+				qnn.train(e[0], e[1], e[2], e[3], e[4], e[5], params)
 
 				print "Neural net plays...\n"
 				print game
