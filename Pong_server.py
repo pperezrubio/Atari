@@ -89,9 +89,15 @@ class Paddle:
             s = table_size+self.frect.size+self.frect.pos+\
                 enemy_frect.size+enemy_frect.pos+ball_frect.size+ball_frect.pos
 
-            if gamescore < 0: r = -1
-            elif gamescore > 0: r = 1
-            else: r = 0
+            if gamescore < 0:
+                #r = 10
+                r = -1
+            elif gamescore > 0:
+                #r = 0
+                r = 1
+            else:
+                r = 0
+                #r = 0.01
 
             t = int(abs(gamescore) == 2)
 
@@ -389,18 +395,18 @@ def init_game():
     paddle_speed = 1
     max_angle = 45
 
-    paddle_bounce =  1.2
+    paddle_bounce =  1.0
     wall_bounce = 1.00
     dust_error = 0.00 #0.00
     init_speed_mag = 2
     timeout = .10
-    clock_rate = 1000 #80
+    clock_rate = 50 #80
     turn_wait_rate = 500
     score_to_win = 1 #3
     rounds = 1
 
     # Toggle display
-    display = 1
+    display = 0
 
     if display:
         screen = pygame.display.set_mode(table_size)
