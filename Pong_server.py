@@ -434,7 +434,7 @@ def init_game():
     score2 = []
 
     while 1:
-        print '[pong_server] Waiting for Client ...'
+        print '[pong_server] Waiting for approach of client...'
         fout = open(PONGFIFO_OUT, 'w')
         strout = '%dx%d\n' % table_size
         fout.write(strout)
@@ -445,6 +445,8 @@ def init_game():
         reg = re.match('ENGAGE', fin.readline() )
 
         if not reg: continue
+
+        print '[pong_Server] Engaged. Playing ...'
 
         while 1:
             s = game_loop(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, score_to_win, display, fout, fin)

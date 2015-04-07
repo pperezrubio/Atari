@@ -50,7 +50,7 @@ MAXMOVES = 10000
 #maze
 STATE_FEATURE = 2
 #pong
-STATE_FEATURE = 14
+STATE_FEATURE = 2400
 
 
 # Maximising q function
@@ -79,9 +79,9 @@ class gameclient():
         self.exploit = 0.9
         self.param = nnparam
 
-        l1 = PerceptronLayer(len(MOVES), 100, 'sum')
-        l2 = PerceptronLayer(100,100)
-        l3 = PerceptronLayer(100, STATE_FEATURE)
+        l1 = PerceptronLayer(len(MOVES), 300, 'sum')
+        l2 = PerceptronLayer(300,300)
+        l3 = PerceptronLayer(300, STATE_FEATURE)
  
         #self.qnn = qnn.Qnn(param = nnparam)
         self.qnn = qnn.Qnn([l1,l2,l3])
@@ -110,7 +110,9 @@ class gameclient():
     def qv(self,s):
         ''' return the q values of all actions of state sorted'''
         # update all q-values for state s 
-        inputs = np.array([s])
+        #inputs = np.array([s])
+        inputs = s
+
         tar = self.qnn.predict(inputs).T
 
         aqs = [ [a,tar[a]] for a in self.movesa(s)]
@@ -122,8 +124,8 @@ class gameclient():
     def qv_set(self,sa):
         ''' set the q value of state s action a'''
         s, s_prime, a, r, term = sa
-        s = np.array([s])
-        s_prime = np.array([s_prime])
+        #s = np.array([s])
+        #s_prime = np.array([s_prime])
 
         self.qnn.train(s, s_prime, a, r, self.gamma, term, self.param)
 
@@ -225,6 +227,7 @@ class gameclient():
             str_in = self.fin.readline()
             response = str_in.strip().split(':')[:-1]
             s, r, t = self.parse(response)
+            sf = reconstruct(s)
 
             # if first state is terminal already, next epoch
             if t == 1:
@@ -235,7 +238,7 @@ class gameclient():
             for j in range( MAXMOVES ):
             
                 # action
-                a = self.pi(s, progress=float(ep)/epoch ,opt=0)
+                a = self.pi(sf, progress=float(ep)/epoch ,opt=0)
 
                 # send in action
                 self.fout.write(MOVEREGEX % (a,)) 
@@ -247,12 +250,12 @@ class gameclient():
                 s_, r_, t_ = self.parse(response)
 
                 # add (state,action) pair to experience
-                exp[( s, a, s_ )] = (r_, t_)
-                ind = random.choice(exp.keys())
-                r_, t_ = exp[ind]
-                s,a,s_ = ind
+                sf = reconstruct(s)
+                s_f = reconstruct(s_)
+                exp[( s, a, s_ )] = (r_, t_, sf, s_f)
 
-                self.qv_set((s, s_, a, r_, t_))
+                # train one
+                self.replay(exp)
  
 
                 # Terminal state
@@ -263,19 +266,23 @@ class gameclient():
                 else:
                     s, r = s_, r_ 
 
-            # update q-values for all states travelled in this epoch
-
-
+            # train nn on exp
             for i in range(100):
-                ind = random.choice(exp.keys())
-                r_, t_ = exp[ind]
-                s,a,s_ = ind
-
-                self.qv_set((s, s_, a, r_, t_))
-                
+               self.replay(exp)
 
         # Final evaluation
         self.evaluate(testcount = 1000)
+
+
+
+    def replay(self, exp):
+
+        ind = random.choice(exp.keys())
+        r_, t_, sf, s_f = exp[ind]
+        s,a,s_ = ind
+
+        self.qv_set((sf, s_f, a, r_, t_))
+              
 
 
     def evaluate (self, testcount = 50):
@@ -314,7 +321,8 @@ class gameclient():
                     self.fout.flush()
                     break
 
-                a = self.pi(s,opt=1)
+                sf = reconstruct(s)
+                a = self.pi(sf,opt=1)
                 self.fout.write(MOVEREGEX % (a,)) 
                 self.fout.flush()
                 
@@ -335,6 +343,34 @@ def timzip(*args):
         a.append(b)
     return a
 
+def reconstruct( s ):
+    ''' Game specific
+    '''
+    tsx, tsy, ssx, ssy, scx, scy, esx, esy, ecx, ecy, bsx, bsy, bcx, bcy = s
+
+    frame = np.zeros((tsy,tsx))
+    
+    # self paddle
+    for i in xrange(int(ssy)):
+        for j in xrange(int(ssx)):
+            frame[i+scy, j+scx] = 1
+
+    # enemy paddle
+    for i in xrange(int(esy)):
+        for j in xrange(int(esx)):
+            frame[i+ecy, j+ecx] = 1
+
+    # ball
+    for i in xrange(int(bsy)):
+        for j in xrange(int(bsx)):
+            x = j+bcx
+            y = i+bcy
+            if x >= 0 and x < tsx and y>=0 and y< tsy:
+                frame[y,x] = 1
+  
+    return frame.reshape((1,tsx*tsy))
+
+
 if __name__ == '__main__':
 
     param = {
@@ -342,7 +378,6 @@ if __name__ == '__main__':
             }
 
     # BEGIN
-
     q1 = gameclient( nnparam=param)
 
     print param
@@ -352,5 +387,3 @@ if __name__ == '__main__':
     time2 = time.time()
 
     print 'TIME:', time2-time1
-
-
