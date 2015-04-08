@@ -33,6 +33,11 @@ PONGFIFO_IN = 'pongfifo_in'
 PONGFIFO_OUT = 'pongfifo_out'
 RESET = 45
 
+POS_REWARD = 0 #500
+NEG_REWARD = 1
+NEU_REWARD = 0
+
+
 white = [255, 255, 255]
 black = [0, 0, 0]
 clock = pygame.time.Clock()
@@ -90,14 +95,11 @@ class Paddle:
                 enemy_frect.size+enemy_frect.pos+ball_frect.size+ball_frect.pos
 
             if gamescore < 0:
-                #r = 10
-                r = -1
+                r = NEG_REWARD
             elif gamescore > 0:
-                #r = 0
-                r = 1
+                r = POS_REWARD
             else:
-                r = 0
-                #r = 0.01
+                r = NEU_REWARD
 
             t = int(abs(gamescore) == 2)
 
@@ -389,9 +391,9 @@ def game_loop(screen, paddles, ball, table_size, clock_rate, turn_wait_rate, sco
     return score
 
 def init_game():
-    table_size = (60,40)     # (440,280)
-    paddle_size = (1, 10)    # (10, 70)
-    ball_size = (5, 5)       # (14, 14)
+    table_size = (15,8)     # (440,280)
+    paddle_size = (1, 3)    # (10, 70)
+    ball_size = (1, 1)       # (14, 14)
     paddle_speed = 1
     max_angle = 45
 
@@ -415,8 +417,8 @@ def init_game():
         screen = None
 
     # Setting up game size
-    paddles = [Paddle((paddle_size[0]+2, table_size[1]/2), paddle_size, paddle_speed, max_angle,  1, timeout),
-               Paddle((table_size[0]-paddle_size[0]-2, table_size[1]/2), paddle_size, paddle_speed, max_angle, 0, timeout)]
+    paddles = [Paddle((paddle_size[0], table_size[1]/2), paddle_size, paddle_speed, max_angle,  1, timeout),
+               Paddle((table_size[0]-paddle_size[0], table_size[1]/2), paddle_size, paddle_speed, max_angle, 0, timeout)]
     ball = Ball(table_size, ball_size, paddle_bounce, wall_bounce, dust_error, init_speed_mag)
 
     # Import players
@@ -434,7 +436,7 @@ def init_game():
     score2 = []
 
     while 1:
-        print '[pong_server] Waiting for approach of client...'
+        print '[pong_server] Waiting for client to approach ...'
         fout = open(PONGFIFO_OUT, 'w')
         strout = '%dx%d\n' % table_size
         fout.write(strout)

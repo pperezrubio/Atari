@@ -50,8 +50,8 @@ MAXMOVES = 10000
 #maze
 STATE_FEATURE = 2
 #pong
-STATE_FEATURE = 2400
-
+#STATE_FEATURE = 2400
+STATE_FEATURE = 14
 
 # Maximising q function
 MAXIMISE = False
@@ -79,12 +79,12 @@ class gameclient():
         self.exploit = 0.9
         self.param = nnparam
 
-        l1 = PerceptronLayer(len(MOVES), 300, 'sum')
-        l2 = PerceptronLayer(300,300)
-        l3 = PerceptronLayer(300, STATE_FEATURE)
+        l1 = PerceptronLayer(len(MOVES), 30)
+        #l2 = PerceptronLayer(30,30)
+        l2 = PerceptronLayer(30, STATE_FEATURE)
  
         #self.qnn = qnn.Qnn(param = nnparam)
-        self.qnn = qnn.Qnn([l1,l2,l3])
+        self.qnn = qnn.Qnn([l1,l2])
 
 
 
@@ -112,6 +112,7 @@ class gameclient():
         # update all q-values for state s 
         #inputs = np.array([s])
         inputs = s
+
 
         tar = self.qnn.predict(inputs).T
 
@@ -151,11 +152,11 @@ class gameclient():
 
         w, h = self.header
 
-        s = s.split(',')        
-        #s = [float(c)/([w,h][i % 2]) for i,c in enumerate(s)]
-        s = [float(c) for c in s]        
+        state = s.strip('()').split(',')        
+        state = [float(c)/([w,h][i % 2]) for i,c in enumerate(state)]
+        #state = [float(c) for c in state]        
 
-        return tuple(s)
+        return tuple(state)
 
 
     def pi(self,s, progress = 0, opt=0):
@@ -166,9 +167,6 @@ class gameclient():
             a: action based on present policy 
         """
         
-        # if given state is terminal state
-        #if self.maze.terminal(s): return None
-
         # get action list for given state
         aqs = self.qv(s)
 
@@ -208,13 +206,14 @@ class gameclient():
         Inputs:
             epoch: number of cycles
         """
-        self.evaluate()
+        self.evaluate(1000)
 
         exp = {}
 
         for ep in range(epoch):
-            if ((ep+1) % 100) == 0 :
+            if ((ep+1) % 500) == 0 :
                 print '[qlearn] epoch:', ep+1
+                print 'EXP size:', len(exp)
                 self.evaluate()
 
             # restart game
@@ -264,10 +263,11 @@ class gameclient():
                     self.fout.flush()
                     break
                 else:
-                    s, r = s_, r_ 
+                    s, r = s_, r_
+                    sf = s_f
 
             # train nn on exp
-            for i in range(100):
+            for i in range(len(exp)*2):
                self.replay(exp)
 
         # Final evaluation
@@ -285,7 +285,7 @@ class gameclient():
               
 
 
-    def evaluate (self, testcount = 50):
+    def evaluate (self, testcount = 100):
         '''Game Specific'''
 
         rounds = 0
@@ -334,18 +334,12 @@ class gameclient():
         print 'AVG SCORE:', float(totalscore)/rounds
 
 
-def timzip(*args):
-    a = []
-    for i in itertools.izip_longest(*args):
-        b = list(i)
-        while None in b:
-            b.remove(None)
-        a.append(b)
-    return a
-
 def reconstruct( s ):
     ''' Game specific
     '''
+
+    return np.array([s])
+
     tsx, tsy, ssx, ssy, scx, scy, esx, esy, ecx, ecy, bsx, bsy, bcx, bcy = s
 
     frame = np.zeros((tsy,tsx))
