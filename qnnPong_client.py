@@ -4,6 +4,7 @@ import random
 import time
 import sys, os
 import itertools
+import cPickle as pickle
 
 from mlp import *
 import qnn
@@ -12,7 +13,7 @@ import qnn
 
 
 # GAME: pong
-
+GAME='pygamepong'
 
 # pipe names
 GAMEIN = 'pongfifo_in'
@@ -105,17 +106,13 @@ class gameclient():
                 
         return rtn
         
-    
 
     def qv(self,s):
         ''' return the q values of all actions of state sorted'''
         # update all q-values for state s 
         #inputs = np.array([s])
         inputs = s
-
-
         tar = self.qnn.predict(inputs).T
-
         aqs = [ [a,tar[a]] for a in self.movesa(s)]
 
         return sorted(aqs, key=lambda x:x[1], reverse= MAXIMISE)
@@ -211,10 +208,12 @@ class gameclient():
         exp = {}
 
         for ep in range(epoch):
-            if ((ep+1) % 500) == 0 :
+            if ((ep+1) % 100) == 0 :
                 print '[qlearn] epoch:', ep+1
                 print 'EXP size:', len(exp)
                 self.evaluate()
+                self.saveexp(exp)
+                self.savenn()
 
             # restart game
             str_in = self.fin.readline()
@@ -267,7 +266,7 @@ class gameclient():
                     sf = s_f
 
             # train nn on exp
-            for i in range(len(exp)*2):
+            for i in range(len(exp)):
                self.replay(exp)
 
         # Final evaluation
@@ -283,6 +282,23 @@ class gameclient():
 
         self.qv_set((sf, s_f, a, r_, t_))
               
+
+
+    def saveexp(self, exp, filename=None):
+        if filename == None:
+            filename = 'store/exp_%s_%s.p' % (GAME, self.header)
+        pickle.dump(exp, open(filename, 'wb'))
+
+    def savenn(self, filename='store/qnn_%s.p' % GAME ):
+        pickle.dump(self.qnn, open(filename, 'wb'))
+
+    def loadexp(self, filename=None):
+        if filename == None:
+            filename = 'store/exp_%s_%s.p' % (GAME, self.header)
+        return pickle.load( open(filename,'rb') )
+
+    def loadnn(self, filename='store/qnn_%s.p' % GAME ):
+        self.qnn =  pickle.load( open(filename,'rb'))
 
 
     def evaluate (self, testcount = 100):
@@ -374,10 +390,13 @@ if __name__ == '__main__':
     # BEGIN
     q1 = gameclient( nnparam=param)
 
+    q1.loadnn()
+    q1.evaluate()
+
     print param
 
     time1 = time.time()
-    q1.train(epoch=5000)
+    #q1.train(epoch=5000)
     time2 = time.time()
 
     print 'TIME:', time2-time1

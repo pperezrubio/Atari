@@ -312,8 +312,8 @@ def render(screen, paddles, ball, score, table_size):
     pygame.draw.line(screen, white, [screen.get_width()/2, 0], [screen.get_width()/2, screen.get_height()])
 
     score_font = pygame.font.Font(None, 32)
-    screen.blit(score_font.render(str(score[0]), True, white), [int(0.4*table_size[0])-8, 0])
-    screen.blit(score_font.render(str(score[1]), True, white), [int(0.6*table_size[0])-8, 0])
+    #screen.blit(score_font.render(str(score[0]), True, white), [int(0.4*table_size[0])-8, 0])
+    #screen.blit(score_font.render(str(score[1]), True, white), [int(0.6*table_size[0])-8, 0])
 
     pygame.display.flip()
 
@@ -402,13 +402,13 @@ def init_game():
     dust_error = 0.00 #0.00
     init_speed_mag = 2
     timeout = .10
-    clock_rate = 50 #80
+    clock_rate = 5 #80
     turn_wait_rate = 500
     score_to_win = 1 #3
     rounds = 1
 
     # Toggle display
-    display = 0
+    display = 1
 
     if display:
         screen = pygame.display.set_mode(table_size)
