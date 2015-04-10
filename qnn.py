@@ -23,7 +23,7 @@ class Qnn(Mlp):
 	A Q neural network.
 	"""
 
-	def __init__(self, layers):
+	def __init__(self, layers, func):
 		"""
 		Initialize the Qnn.
 
@@ -37,6 +37,7 @@ class Qnn(Mlp):
 		for layer in self.layers:
 			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
 
+		self.func = func
 
 	def train(self, s, s_prime, a, r, gamma, term, hyperparameters):
 		"""
@@ -66,6 +67,6 @@ class Qnn(Mlp):
 
 		#Change current weights according to update equation
 		dE = np.zeros(qs.shape)
-		dE[0, a] = qs[0, a] - r - gamma * np.max(qs_prime) #TODO: Pass term as binary.
+		dE[0, a] = qs[0, a] - r - gamma * self.func(qs_prime) #TODO: Pass term as binary.
 		self.backprop(dE)
 		self.update(hyperparameters)

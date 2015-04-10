@@ -33,8 +33,8 @@ PONGFIFO_IN = 'pongfifo_in'
 PONGFIFO_OUT = 'pongfifo_out'
 RESET = 45
 
-POS_REWARD = 0 #500
-NEG_REWARD = 1
+POS_REWARD = 1 #500
+NEG_REWARD = -1
 NEU_REWARD = 0
 
 
@@ -408,7 +408,7 @@ def init_game():
     rounds = 1
 
     # Toggle display
-    display = 1
+    display = 0
 
     if display:
         screen = pygame.display.set_mode(table_size)

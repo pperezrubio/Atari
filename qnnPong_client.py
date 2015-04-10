@@ -11,56 +11,61 @@ import qnn
 
 # Settings for different gaming environments ####
 
-
-# GAME: pong
+#GAME='alepong'
 GAME='pygamepong'
+#GAME='maze'
 
 # pipe names
 GAMEIN = 'pongfifo_in'
 GAMEOUT = 'pongfifo_out'
 
 # moves list
-# ALE
-#MOVES = [3,4]
-# maze
-#MOVES = [0,1,2,3]
-# pong
-MOVES = [0,1]
+if GAME == 'alepong':
+    MOVES = [3,4]
+elif GAME == 'pygamepong':
+    MOVES = [0,1]
+elif GAME == 'maze':
+    MOVES = [0,1]
+
 # reset action for all
 RESET = 45
 
-# ALE: www-hhh
-#GREETREGEX = "([0-9]{3})-([0-9]{3})"
-# maze: hxw
-GREETREGEX = '([0-9]+)x([0-9]+)'
 
-# ALE: r,s,k,e
-#ENGAGEMSG = '1,0,0,1'
-# maze
-ENGAGEMSG = 'ENGAGE'
+# Server greet regex
+if GAME == 'alepong': # www-hhh
+    GREETREGEX = "([0-9]{3})-([0-9]{3})"
+elif GAME == 'maze' or GAME == 'pygamepong':  # hxw
+    GREETREGEX = '([0-9]+)x([0-9]+)'
+
+# Client engage message
+if GAME == 'alepong':  # r,s,k,e
+    ENGAGEMSG = '1,0,0,1'
+elif GAME == 'maze' or GAME == 'pygamepong':
+    ENGAGEMSG = 'ENGAGE'
+
+# Client move regex
+if GAME == 'alepong':
+    MOVEREGEX = '%d,0\n'
+elif GAME == 'maze' or GAME == 'pygamepong':
+    MOVEREGEX = '%d\n'
 
 
-# ALE
-MOVEREGEX = '%d,0\n'
-# maze
-MOVEREGEX = '%d\n'
-
-
+# Maximum number of moves in one episode
 MAXMOVES = 10000
 
-#maze
-STATE_FEATURE = 2
-#pong
-#STATE_FEATURE = 2400
-STATE_FEATURE = 14
+# qnn input
+if GAME == 'alepong':
+    STATE_FEATURES = 784
+elif GAME == 'maze':
+    STATE_FEATURES = 2
+elif GAME == 'pygamepong':
+    #STATE_FEATURE = 2400
+    STATE_FEATURES = 14
 
 # Maximising q function
-MAXIMISE = False
+MAXIMISE = True
 
 ##################################################
-
-
-# Generate moves table to discover problem
 
 
 class gameclient():
@@ -80,13 +85,20 @@ class gameclient():
         self.exploit = 0.9
         self.param = nnparam
 
-        l1 = PerceptronLayer(len(MOVES), 30)
-        #l2 = PerceptronLayer(30,30)
-        l2 = PerceptronLayer(30, STATE_FEATURE)
- 
-        #self.qnn = qnn.Qnn(param = nnparam)
-        self.qnn = qnn.Qnn([l1,l2])
 
+        if nnparam['layers'] == 0:
+            layers = [ PerceptronLayer(len(MOVES), STATE_FEATURES, nnparam['out']) ]
+        else:
+            layers = [PerceptronLayer(len(MOVES), nnparam['hid'][0], nnparam['out'])]
+            for l in xrange(nnparam['layers']-1):
+                layers.append( PerceptronLayer(nnparam['hid'][l], nnparam['hid'][l+1]) )
+            layers.append( PerceptronLayer(nnparam['hid'][-1], STATE_FEATURES) )
+ 
+        if MAXIMISE: func = np.max
+        else: func = np.min
+
+        self.qnn = qnn.Qnn( layers, func=func )
+        
 
 
     def handshake(self):
@@ -109,53 +121,19 @@ class gameclient():
 
     def qv(self,s):
         ''' return the q values of all actions of state sorted'''
-        # update all q-values for state s 
-        #inputs = np.array([s])
         inputs = s
         tar = self.qnn.predict(inputs).T
         aqs = [ [a,tar[a]] for a in self.movesa(s)]
 
         return sorted(aqs, key=lambda x:x[1], reverse= MAXIMISE)
-        
 
 
     def qv_set(self,sa):
         ''' set the q value of state s action a'''
         s, s_prime, a, r, term = sa
-        #s = np.array([s])
-        #s_prime = np.array([s_prime])
-
         self.qnn.train(s, s_prime, a, r, self.gamma, term, self.param)
 
-    
-    def movesa( self, s):
-        '''Game specific. return available action for given state'''
-        return MOVES
-
-
-    def parse(self, response):
-        ''' Game specific.
-
-        Input:
-            response: list of elements ended by ':'
-        '''
-        s, r, t = response
-        s = self.parse_state(s)
-        return s,float(r),int(t)
-
-
-    def parse_state(self, s):
-        '''Game specific '''
-
-        w, h = self.header
-
-        state = s.strip('()').split(',')        
-        state = [float(c)/([w,h][i % 2]) for i,c in enumerate(state)]
-        #state = [float(c) for c in state]        
-
-        return tuple(state)
-
-
+   
     def pi(self,s, progress = 0, opt=0):
         """ Select an action given a state based on present policy (may be optimal or not)
         Input:
@@ -163,7 +141,6 @@ class gameclient():
         Return:
             a: action based on present policy 
         """
-        
         # get action list for given state
         aqs = self.qv(s)
 
@@ -189,15 +166,13 @@ class gameclient():
             q: if s is terminal state, return reward
                else return reward + max q
         """
-
-        aqs = self.qv(s)
         if t: return r
 
-        a,q = aqs[0]
+        a,q = self.qv(s)[0]
         return r + self.lam*q
 
 
-    def train(self, epoch=1000):
+    def train(self, epoch=1000, replay_rate=4000):
         """ Trains the Q matrix on the maze
         
         Inputs:
@@ -225,7 +200,7 @@ class gameclient():
             str_in = self.fin.readline()
             response = str_in.strip().split(':')[:-1]
             s, r, t = self.parse(response)
-            sf = reconstruct(s)
+            sf = self.reconstruct(s)
 
             # if first state is terminal already, next epoch
             if t == 1:
@@ -248,13 +223,9 @@ class gameclient():
                 s_, r_, t_ = self.parse(response)
 
                 # add (state,action) pair to experience
-                sf = reconstruct(s)
-                s_f = reconstruct(s_)
+                sf = self.reconstruct(s)
+                s_f = self.reconstruct(s_)
                 exp[( s, a, s_ )] = (r_, t_, sf, s_f)
-
-                # train one
-                self.replay(exp)
- 
 
                 # Terminal state
                 if t_ == 1 or j == MAXMOVES-1:
@@ -266,15 +237,15 @@ class gameclient():
                     sf = s_f
 
             # train nn on exp
-            for i in range(len(exp)):
+            for i in range( min(len(exp),replay_rate) ):
                self.replay(exp)
 
         # Final evaluation
         self.evaluate(testcount = 1000)
 
 
-
     def replay(self, exp):
+        ''' Train qnn based on experience'''
 
         ind = random.choice(exp.keys())
         r_, t_, sf, s_f = exp[ind]
@@ -287,23 +258,34 @@ class gameclient():
     def saveexp(self, exp, filename=None):
         if filename == None:
             filename = 'store/exp_%s_%s.p' % (GAME, self.header)
-        pickle.dump(exp, open(filename, 'wb'))
 
-    def savenn(self, filename='store/qnn_%s.p' % GAME ):
+        pickle.dump(exp, open(filename.replace(' ',''), 'wb'))
+
+
+    def savenn(self, filename= None):
+        if filename == None:
+            l = [len(MOVES)] + self.param['hid'] + [STATE_FEATURES]
+            filename = 'store/qnn_%s_%s.p' % (GAME,str(l).replace(' ','') )
+
         pickle.dump(self.qnn, open(filename, 'wb'))
+
 
     def loadexp(self, filename=None):
         if filename == None:
             filename = 'store/exp_%s_%s.p' % (GAME, self.header)
-        return pickle.load( open(filename,'rb') )
 
-    def loadnn(self, filename='store/qnn_%s.p' % GAME ):
+        return pickle.load( open(filename.replace(' ',''),'rb') )
+
+
+    def loadnn(self, filename=None ):
+        if filename == None:
+            l = [len(MOVES)] + self.param['hid'] + [STATE_FEATURES]
+            filename = 'store/qnn_%s_%s.p' % (GAME,str(l).replace(' ',''))
+
         self.qnn =  pickle.load( open(filename,'rb'))
 
 
     def evaluate (self, testcount = 100):
-        '''Game Specific'''
-
         rounds = 0
         totalmoves = 0
         totalscore = 0
@@ -330,14 +312,13 @@ class gameclient():
                 if t==1 or j == MAXMOVES:
                     if j > 0:
                         rounds += 1
-                        #print score
                         totalscore += score
                     
                     self.fout.write(MOVEREGEX % RESET) 
                     self.fout.flush()
                     break
 
-                sf = reconstruct(s)
+                sf = self.reconstruct(s)
                 a = self.pi(sf,opt=1)
                 self.fout.write(MOVEREGEX % (a,)) 
                 self.fout.flush()
@@ -348,55 +329,97 @@ class gameclient():
 
         print 'AVG NUM MOVES:', float(totalmoves)/rounds
         print 'AVG SCORE:', float(totalscore)/rounds
+ 
+
+    ### game specific functions ###
+
+    def movesa( self, s):
+        '''Game specific. return available action for given state'''
+        return MOVES
 
 
-def reconstruct( s ):
-    ''' Game specific
-    '''
+    def parse(self, response):
+        ''' Game specific.
 
-    return np.array([s])
+        Input:
+            response: list of elements ended by ':'
+        '''
+        s, r, t = response
+        s = self.parse_state(s)
+        
+        return s,float(r),int(t)
 
-    tsx, tsy, ssx, ssy, scx, scy, esx, esy, ecx, ecy, bsx, bsy, bcx, bcy = s
 
-    frame = np.zeros((tsy,tsx))
-    
-    # self paddle
-    for i in xrange(int(ssy)):
-        for j in xrange(int(ssx)):
-            frame[i+scy, j+scx] = 1
+    def parse_state(self, s):
+        '''Game specific '''
+        w, h = self.header
+        state = s.strip('()').split(',')
+        
+        # normalization
+        state = [float(c)/([w,h][i % 2]) for i,c in enumerate(state)]
+        # without normalization  (for reconstruction)
+        #state = [float(c) for c in state]        
 
-    # enemy paddle
-    for i in xrange(int(esy)):
-        for j in xrange(int(esx)):
-            frame[i+ecy, j+ecx] = 1
+        return tuple(state)
 
-    # ball
-    for i in xrange(int(bsy)):
-        for j in xrange(int(bsx)):
-            x = j+bcx
-            y = i+bcy
-            if x >= 0 and x < tsx and y>=0 and y< tsy:
-                frame[y,x] = 1
-  
-    return frame.reshape((1,tsx*tsy))
+
+
+    def reconstruct(self, s):
+        ''' Game specific
+        
+        Input:
+            1D tuple
+
+        Output:
+            2D matrix (1 x no.features)
+        '''
+
+        return np.array([s])
+
+        tsx, tsy, ssx, ssy, scx, scy, esx, esy, ecx, ecy, bsx, bsy, bcx, bcy = s
+
+        frame = np.zeros((tsy,tsx))
+        
+        # self paddle
+        for i in xrange(int(ssy)):
+            for j in xrange(int(ssx)):
+                frame[i+scy, j+scx] = 1
+
+        # enemy paddle
+        for i in xrange(int(esy)):
+            for j in xrange(int(esx)):
+                frame[i+ecy, j+ecx] = 1
+
+        # ball
+        for i in xrange(int(bsy)):
+            for j in xrange(int(bsx)):
+                x = j+bcx
+                y = i+bcy
+                if x >= 0 and x < tsx and y>=0 and y< tsy:
+                    frame[y,x] = 1
+      
+        return frame.reshape((1,tsx*tsy))
 
 
 if __name__ == '__main__':
 
     param = {
              'learn_rate':0.2,
+             'layers': 1,
+             'hid':[35],
+             'out':'sum'  #'sigmoid'
             }
 
     # BEGIN
     q1 = gameclient( nnparam=param)
 
-    q1.loadnn()
-    q1.evaluate()
+    #q1.loadnn()
+    #q1.evaluate()
 
     print param
 
     time1 = time.time()
-    #q1.train(epoch=5000)
+    q1.train(epoch=5000)
     time2 = time.time()
 
     print 'TIME:', time2-time1
