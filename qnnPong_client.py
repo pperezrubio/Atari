@@ -59,11 +59,11 @@ if GAME == 'alepong':
 elif GAME == 'maze':
     STATE_FEATURES = 2
 elif GAME == 'pygamepong':
-    #STATE_FEATURE = 2400
-    STATE_FEATURES = 14
+    STATE_FEATURES = 120
+    #STATE_FEATURES = 14
 
 # Maximising q function
-MAXIMISE = True
+MAXIMISE = False
 
 ##################################################
 
@@ -82,7 +82,7 @@ class gameclient():
         # lambda
         self.gamma = 0.8
         # max exploit probability
-        self.exploit = 0.9
+        self.exploit = 0.7
         self.param = nnparam
 
 
@@ -94,10 +94,10 @@ class gameclient():
                 layers.append( PerceptronLayer(nnparam['hid'][l], nnparam['hid'][l+1]) )
             layers.append( PerceptronLayer(nnparam['hid'][-1], STATE_FEATURES) )
  
-        if MAXIMISE: func = np.max
-        else: func = np.min
+        if MAXIMISE: self.func = np.max
+        else: self.func = np.min
 
-        self.qnn = qnn.Qnn( layers, func=func )
+        self.qnn = qnn.Qnn( layers, func=self.func )
         
 
 
@@ -181,14 +181,22 @@ class gameclient():
         self.evaluate(1000)
 
         exp = {}
+        tstates = None
 
         for ep in range(epoch):
             if ((ep+1) % 100) == 0 :
                 print '[qlearn] epoch:', ep+1
                 print 'EXP size:', len(exp)
                 self.evaluate()
+                self.evaluate_avgqv(tstates)
                 self.saveexp(exp)
                 self.savenn()
+
+            if ep > 0 and ep < 99:
+                for i in xrange(5):
+                    ind = random.choice(exp.keys())
+                    if tstates != None: tstates = np.vstack((tstates,exp[ind][2]))
+                    else: tstates = exp[ind][2]  # index 2 is reconstructed state
 
             # restart game
             str_in = self.fin.readline()
@@ -227,12 +235,16 @@ class gameclient():
                 s_f = self.reconstruct(s_)
                 exp[( s, a, s_ )] = (r_, t_, sf, s_f)
 
-                # Terminal state
+                # train one                
+                self.replay(exp)
+
                 if t_ == 1 or j == MAXMOVES-1:
+                    # Terminal state
                     self.fout.write(MOVEREGEX % RESET) 
                     self.fout.flush()
                     break
                 else:
+                    # current state is next state
                     s, r = s_, r_
                     sf = s_f
 
@@ -285,7 +297,14 @@ class gameclient():
         self.qnn =  pickle.load( open(filename,'rb'))
 
 
-    def evaluate (self, testcount = 100):
+    def evaluate_avgqv(self, states):
+        tar = self.qnn.predict(states)
+        avgqvs =  np.mean(self.func(tar,1))
+
+        print 'AVG OPTIMAL Q-VALUE:', avgqvs
+
+
+    def evaluate (self, testcount = 500):
         rounds = 0
         totalmoves = 0
         totalscore = 0
@@ -356,9 +375,9 @@ class gameclient():
         state = s.strip('()').split(',')
         
         # normalization
-        state = [float(c)/([w,h][i % 2]) for i,c in enumerate(state)]
+        #state = [float(c)/([w,h][i % 2]) for i,c in enumerate(state)]
         # without normalization  (for reconstruction)
-        #state = [float(c) for c in state]        
+        state = [float(c) for c in state]        
 
         return tuple(state)
 
@@ -374,7 +393,7 @@ class gameclient():
             2D matrix (1 x no.features)
         '''
 
-        return np.array([s])
+        #return np.array([s])
 
         tsx, tsy, ssx, ssy, scx, scy, esx, esy, ecx, ecy, bsx, bsy, bcx, bcy = s
 
@@ -405,9 +424,9 @@ if __name__ == '__main__':
 
     param = {
              'learn_rate':0.2,
-             'layers': 1,
-             'hid':[35],
-             'out':'sum'  #'sigmoid'
+             'layers': 3,
+             'hid':[400,400,400],
+             'out':'sigmoid'
             }
 
     # BEGIN

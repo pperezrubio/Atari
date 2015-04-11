@@ -23,7 +23,7 @@ class Qnn(Mlp):
 	A Q neural network.
 	"""
 
-	def __init__(self, layers, func):
+	def __init__(self, layers, func=np.max):
 		"""
 		Initialize the Qnn.
 

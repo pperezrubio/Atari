@@ -33,8 +33,8 @@ PONGFIFO_IN = 'pongfifo_in'
 PONGFIFO_OUT = 'pongfifo_out'
 RESET = 45
 
-POS_REWARD = 1 #500
-NEG_REWARD = -1
+POS_REWARD = 0 #500
+NEG_REWARD = 1
 NEU_REWARD = 0
 
 
