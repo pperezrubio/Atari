@@ -19,7 +19,7 @@ class ConvLayer():
         fan_out = (filter_shape[0] * np.prod(filter_shape[2:])/np.prod(poolsize))
 
         if w is None:
-            w_values = np.sqrt(6/(fan_in + fan_out)) * np.random.randn(filter_shape[0], filter_shape[1], filter_shape[2], filter_shape[3])
+            w_values = np.sqrt(6.0/(fan_in + fan_out)) * np.random.randn(filter_shape[0], filter_shape[1], filter_shape[2], filter_shape[3])
             w = thn.shared(value=w_values, name='w', borrow=True)
 
         if b is None:
@@ -40,14 +40,14 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200, filename='data/cnnMnist2.np
 
     dataset = np.load(filename)
 
-    train_data  = tn.cast(thn.shared(dataset['train_data'][0:5000].reshape(5000, 1, 28, 28), borrow=True), 'float32')
+    train_data  = tn.cast(thn.shared(dataset['train_data'][0:5000].reshape(5000, 1, 28, 28), borrow=True), 'float64')
     train_label = tn.cast(thn.shared(dataset['train_label'][0:5000], borrow=True), 'int32')
-    valid_data  = tn.cast(thn.shared(dataset['valid_data'][0:200].reshape(200, 1, 28, 28), borrow=True), 'float32')
+    valid_data  = tn.cast(thn.shared(dataset['valid_data'][0:200].reshape(200, 1, 28, 28), borrow=True), 'float64')
     valid_label = tn.cast(thn.shared(dataset['valid_label'][0:200], borrow=True), 'int32')
-    test_data   = tn.cast(thn.shared(dataset['test_data'][0:100].reshape(100, 1, 28, 28), borrow=True), 'float32')
+    test_data   = tn.cast(thn.shared(dataset['test_data'][0:100].reshape(100, 1, 28, 28), borrow=True), 'float64')
     test_label  = tn.cast(thn.shared(dataset['test_label'][0:100], borrow=True), 'int32')
 
-    x = tn.ftensor4'x')   # the data is presented as rasterized images
+    x = tn.dtensor4('x')   # the data is presented as rasterized images
     y = tn.ivector('y')  # the labels are presented as 1D vector of
                         # [int] labels
 

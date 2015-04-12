@@ -1,9 +1,6 @@
-import os
-import sys
+
 import time
-
 import numpy as np
-
 import theano as thn
 import theano.tensor as tn
 
@@ -12,8 +9,10 @@ class PerceptronLayer(object):
 
     def __init__(self, data, no_inputs, no_outputs, activation=None, w=None, b=None):
 
+        self.input = data
+
         if w is None and activation is tn.tanh or activation is tn.nnet.sigmoid: 
-            w_values = np.sqrt(6/(no_inputs + no_outputs)) * np.random.randn(no_inputs, no_outputs)
+            w_values = np.sqrt(6.0/(no_inputs + no_outputs)) * np.random.randn(no_inputs, no_outputs)
             w = thn.shared(value=w_values, name='w', borrow=True)
         elif w is None and activation is not tn.tanh or activation is not tn.nnet.sigmoid:
             w_values = 0.01 * np.random.randn(no_inputs, no_outputs)
@@ -25,23 +24,23 @@ class PerceptronLayer(object):
 
         self.w, self.b = w, b
 
-        self.output = activation(tn.dot(data, self.w) + self.b)
-        self.pred = tn.argmax(self.output, axis=1)
+        if activation is None:
+            self.output = tn.dot(self.input, self.w) + self.b
+        else:
+            self.output = activation(tn.dot(self.input, self.w) + self.b)
+
+        self.pred = tn.argmax(self.output, axis=1) #Change: Take the 
         self.params = [self.w, self.b]
+        self.activation_type = activation
+        self.no_outputs = no_outputs
+        self.no_inputs = no_inputs
 
 
-class Mlp(object):
+class Mlp():
 
     def __init__(self, layers):
 
-        # Since we are dealing with a one hidden layer MLP, this will translate
-        # into a HiddenLayer with a tanh activation function connected to the
-        # LogisticRegression layer; the activation function can be replaced by
-        # sigmoid or any other nonlinear function
         self.layers = layers
-
-        # the parameters of the model are the parameters of the two layer it is
-        # made out of
         self.params = []
         for layer in self.layers:
             self.params = self.params + layer.params
@@ -79,6 +78,66 @@ class Mlp(object):
 
         end_time = time.clock()
         print 'The code ran for %.1fs' % (end_time - start_time)
+
+
+class Qnn():
+
+    def __init__(self, layers):
+
+        self.layers = layers
+        self.params = []
+        for layer in self.layers:
+            self.params = self.params + layer.params
+
+        self.old_layers = []
+        for i in xrange(len(self.layers) - 1, -1, -1):
+            if i == len(self.layers) - 1:
+                layer = self.layers[i]
+                self.old_layers.insert(0, PerceptronLayer(data=layer.input, no_inputs=layer.no_inputs, no_outputs=layer.no_outputs, activation=layer.activation_type))
+            else:
+                layer = self.layers[i]
+                self.old_layers.insert(0, PerceptronLayer(data=self.old_layers[0].output, no_inputs=layer.no_inputs, no_outputs=layer.no_outputs, activation=layer.activation_type))
+
+        self.output = self.layers[0].output
+        self.pred = self.layers[0].pred
+
+
+    def train(self, s, s_prime, action, reward, gamma, term, hyperparams):
+
+        #Define symbolic variables
+        y = tn.matrix('y')
+        a, r, t, g = tn.bscalar('a'), tn.bscalar('r'), tn.bscalar('t'), tn.bscalar('g') 
+
+        print 'Training the model...'
+
+        #gparams = []
+        #for param in self.params:
+        #    gparams.append(tn.grad(cost, param))
+
+        #updates = [
+        #    (param, param - hyperparams['learn_rate'] * gparam)
+        #    for param, gparam in zip(self.params, gparams)
+        #]
+
+        #Predict qs_prime with prev weights.
+        #theta = cpy(self.layers)
+        #self.layers = self.layers_old
+        f_prime = thn.function([], outputs=self.pred, givens={x: state_prime})
+        qs_prime = f_prime()
+        print ps_prime
+        #self.layers = theta
+
+        #Set prev weights to the current ones.
+        #self.layers_old = cpy(self.layers)
+
+        #Change current weights according to update equation
+        #dE = np.zeros(qs.shape)
+        #cost = self.output[0, a] - r - t * g * tn.max(y)
+        #train_model = thn.function([], outputs=cost, updates=updates, givens={x: state, y: qs_prime, r: reward, t: term, g: gamma})
+
+
+    def predict(self, s):
+        return thn.function([], outputs=self.pred, givens={x: s})
 
 
 
