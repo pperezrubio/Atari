@@ -13,44 +13,21 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import numpy as np
-from copy import deepcopy as cpy
 from mlp import *
+from cnn import *
 from util import *
+from copy import deepcopy as cpy
 
 
-class Qnn(Mlp):
+class Qlearn():
 	"""
-	A Q neural network.
+	Q learning module.
 	"""
 
-	def __init__(self, layers, func=np.max):
+	def direct_train(self, s, s_prime, a, r, gamma, term, hyperparameters):
 		"""
-		Initialize the Qnn.
-
-		Args:
-		-----
-			layers: List of mlp layers arranged heirarchically.
-		"""
-		Mlp.__init__(self, layers)
-
-		self.layers_old = []
-		for layer in self.layers:
-			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
-
-		self.func = func
-
-	def train(self, s, s_prime, a, r, gamma, term, hyperparameters):
-		"""
-		Train the Qnn.
-
-		Args:
-		----
-			s 	: A 1 x no_feats array repr a state.
-			s_prime : A 1 x no_feats array repr a state.
-			r : A double value repr reward gotten by entering next_state.
-			gamma : A discount factor.
-			term : A boolean value: True if next_state is terminal, False otherwise.
-			hyperparameters : A dictionary of training parameters.
+		Train a variant of Q networks using the direct algorithm for
+		Q learning.
 		"""
 		#Predict Q values
 		qs = self.predict(s)
@@ -67,6 +44,86 @@ class Qnn(Mlp):
 
 		#Change current weights according to update equation
 		dE = np.zeros(qs.shape)
-		dE[0, a] = qs[0, a] - r - gamma * self.func(qs_prime) #TODO: Pass term as binary.
+		dE[0, a] = qs[0, a] - r - gamma * np.max(qs_prime)
 		self.backprop(dE)
 		self.update(hyperparameters)
+
+
+class Qnn(Mlp, Qlearn):
+	"""
+	A Q neural network.
+	"""
+
+	def __init__(self, layers):
+		"""
+		Initialize the Qnn.
+
+		Args:
+		-----
+			layers: List of mlp layers arranged heirarchically.
+		"""
+		Mlp.__init__(self, layers)
+
+		self.layers_old = []
+		for layer in self.layers:
+			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
+
+
+	def train(self, s, s_prime, a, r, gamma, term, hyperparameters):
+		"""
+		Train the dqn.
+
+		Args:
+		----
+			s 	: A no_imgs x img_length x img_width array repr a state.
+			s_prime : A no_imgs x img_length x img_width array repr the next state.
+			a : Action taken at state s.
+			r : A double value repr reward gotten by entering next_state.
+			gamma : A double value repr the discount factor.
+			term : A boolean value: True if next_state is terminal, False otherwise.
+			hyperparameters : A dictionary of training parameters.
+		"""
+		
+		self.direct_train(s, s_prime, a, r, gamma, term, hyperparameters)
+
+
+class Dqn(Cnn, Qlearn):
+	"""
+	A deep Q neural network.
+	"""
+
+	def __init__(self, layers):
+		"""
+		Initialize the Qnn.
+
+		Args:
+		-----
+			layers: List of layers arranged heirarchically.
+		"""
+
+		self.layers_old = []
+
+		Cnn.__init__(self, layers)
+
+		for layer in layers['fully-connected']:
+			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
+		for layer in layers['convolutional']:
+			self.layers_old.append(ConvLayer(layer.kernels.shape[0], layer.kernels.shape[1:], layer.pfctr, layer.no_in))
+
+	
+	def train(self, s, s_prime, a, r, gamma, term, hyperparameters):
+		"""
+		Train the dqn.
+
+		Args:
+		----
+			s 	: A no_imgs x img_length x img_width array repr a state.
+			s_prime : A no_imgs x img_length x img_width array repr the next state.
+			a : Action taken at state s.
+			r : A double value repr reward gotten by entering next_state.
+			gamma : A double value repr the discount factor.
+			term : A boolean value: True if next_state is terminal, False otherwise.
+			hyperparameters : A dictionary of training parameters.
+		"""
+
+		self.direct_train(s, s_prime, a, r, gamma, term, hyperparameters)
