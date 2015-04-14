@@ -41,7 +41,7 @@ class gameclient():
         if gparm.MAXIMISE: self.func = np.max
         else: self.func = np.min
 
-        self.qnn = qnn.Qnn( layers, func=self.func )
+        self.qnn = qnn.Qnn( layers )
         self.exp = {}
 
 
@@ -76,7 +76,7 @@ class gameclient():
     def qv_set(self,sa):
         ''' set the q value of state s action a'''
         s, s_prime, a, r, term = sa
-        self.qnn.train(s, s_prime, a, r, self.gamma, term, self.param)
+        self.qnn.train(s, s_prime, a, r, self.gamma, term, self.param, self.func)
 
    
     def pi(self,s, progress = 0, opt=0, rand=0):
