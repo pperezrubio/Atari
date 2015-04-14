@@ -123,7 +123,7 @@ if __name__ == '__main__':
 	epsilon = 0.9
 	params = {'learn_rate': 0.2}
 	episode = 1
-	no_episodes = 100
+	no_episodes = 200
 	play = True
 	nn_win_count = 0
 
