@@ -13,9 +13,13 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import random
+import sys
+sys.path.append('../')
+
 import numpy as np
 from mlp import *
 from qnn import *
+
 
 class Grid():
 	"""
@@ -123,7 +127,7 @@ if __name__ == '__main__':
 	epsilon = 0.9
 	params = {'learn_rate': 0.2}
 	episode = 1
-	no_episodes = 100
+	no_episodes = 200
 	play = True
 	nn_win_count = 0
 
@@ -153,11 +157,12 @@ if __name__ == '__main__':
 			#Store Experience
 			s_prime, i_prime = game.getState()
 			s_prime = np.array(s_prime).reshape(1, len(s_prime))
-			REM[tuple(s.flat), a] = (s, s_prime, a, game.getReward(i, i_prime), gamma, game.isTerminal())
+			REM[tuple(s.flat), a] = (s, s_prime, a, game.getReward(i, i_prime), gamma, not game.isTerminal())
 
 			#Sample random experience
 			e = REM.values()[random.randint(0, len(REM.values()) - 1)]
-			qnn.train(e[0], e[1], e[2], e[3], e[4], e[5], params)
+			a, r, g, t = np.asarray([e[2]]), np.asarray([e[3]]), e[4], np.asarray([e[5]])
+			qnn.train(e[0], e[1], a, r, g, t, params)
 
 			if a == 0:
 				move = 'up'
