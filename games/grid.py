@@ -124,10 +124,10 @@ if __name__ == '__main__':
 	qnn = Qnn([PerceptronLayer(4, 16, "sum")])
 	REM = {}
 	gamma = 0.99
-	epsilon = 0.9
-	params = {'learn_rate': 0.2}
+	epsilon = 0.8
+	params = {'learn_rate': 0.005, 'use_RMSprop': True}
 	episode = 1
-	no_episodes = 200
+	no_episodes = 100
 	play = True
 	nn_win_count = 0
 
@@ -152,6 +152,7 @@ if __name__ == '__main__':
 				else:
 					print "Net's action"
 					qval = qnn.predict(s)
+					print qval
 					a = (np.where(qval == np.max(qval))[1])[0]
 					
 			#Store Experience
@@ -161,8 +162,8 @@ if __name__ == '__main__':
 
 			#Sample random experience
 			e = REM.values()[random.randint(0, len(REM.values()) - 1)]
-			a, r, g, t = np.asarray([e[2]]), np.asarray([e[3]]), e[4], np.asarray([e[5]])
-			qnn.train(e[0], e[1], a, r, g, t, params)
+			_a, _r, _g, _t = np.asarray([e[2]]), np.asarray([e[3]]), e[4], np.asarray([e[5]])
+			qnn.train(e[0], e[1], _a, _r, _g, _t, params)
 
 			if a == 0:
 				move = 'up'

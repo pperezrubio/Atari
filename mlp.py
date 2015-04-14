@@ -118,10 +118,15 @@ class PerceptronLayer():
 			outputType: Type of output ('sum', 'sigmoid', 'tanh' or 'softmax')
 		"""
 		self.o_type = outputType
-		self.w = 0.01 * np.random.randn(no_outputs, no_inputs)
+		if outputType == "sigmoid" or outputType == "tanh":
+			self.w = (6.0/(no_outputs + no_inputs)) * np.random.randn(no_outputs, no_inputs)
+		else:
+			self.w = 0.01 * np.random.randn(no_outputs, no_inputs)
 		self.b = 0.01 * np.random.randn(no_outputs, 1)
 		if no_outputs <= 2:
 			self.o_type = "sigmoid"
+
+		self.rms = [np.zeros(self.w.shape), np.zeros(self.b.shape), 0]
 
 
 	def bprop(self, dEds):
@@ -154,13 +159,35 @@ class PerceptronLayer():
 		return self.dEdx
 
 
-	def update(self, lr):
+	def update(self, lr, useRMSprop):
 		"""
 		Update the weights in this layer.
 		"""
 		m, N = self.x.shape
-		self.w = self.w - (lr * (self.dEdw / N))
-		self.b = self.b - (lr * (self.dEdb / N))
+		self.dEdw = self.dEdw / N
+		self.dEdb = self.dEdb / N		
+
+		if useRMSprop:
+			n = self.rms[2]
+			rmsw = ((n * self.rms[0]) + np.square(self.dEdw)) / (n + 1)
+			rmsb = ((n * self.rms[1]) + np.square(self.dEdb)) / (n + 1)
+			self.dEdw = self.dEdw / np.sqrt(rmsw)
+			self.dEdb = self.dEdb / np.sqrt(rmsb)
+
+			#Handle illegal values
+			self.dEdw[np.where(np.isnan(self.dEdw))] = 0
+			self.dEdb[np.where(np.isnan(self.dEdb))] = 0
+			self.dEdw[np.where(np.isinf(self.dEdw))] = 0
+			self.dEdb[np.where(np.isinf(self.dEdb))] = 0
+
+			#Update averages
+			self.rms[2] = self.rms[2] + 1
+			self.rms[0] = rmsw
+			self.rms[1] = rmsb
+
+		#Update weights
+		self.w = self.w - (lr * self.dEdw)
+		self.b = self.b - (lr * self.dEdb)
 
 
 	def feedf(self, data):
@@ -268,7 +295,10 @@ class Mlp():
   			parameters: Training parameters.
   		"""
   		for layer in self.layers:
-  			layer.update(parameters['learn_rate'])
+  			if 'use_RMSprop' in parameters.keys():
+  				layer.update(parameters['learn_rate'], parameters['use_RMSprop'])
+  			else:	
+  				layer.update(parameters['learn_rate'], False)
 
 
   	def predict(self, data):
