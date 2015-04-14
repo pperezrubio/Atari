@@ -23,37 +23,38 @@ class Qlearn():
 	Q learning module.
 	"""
 
-	def direct_train(self, s, s_prime, a, r, gamma, term, hyperparams, minmax=np.max):
+	def direct_train(self, s, s_prime, a, r, gamma, cont, hyperparams, minmax=np.max):
 		"""
 		Train a variant of Q networks using the direct algorithm for
 		Q learning.
 
 		Args:
 		----
-			s 		: A state.
-			s_prime : The next state.
-			a 		: Action taken at state s.
-			r 		: A double value repr reward gotten by entering next_state.
-			gamma 	: A double value repr the discount factor.
-			term 	: A boolean value: True if next_state is terminal, False otherwise.
+			s 	: A no_states x no_feats array repr different states s.
+			s_prime : The no_states x no_feats array repr the next state from states s.
+			a 	: A no_states vector of actions taken at states s.
+			r 	: A no_states vector of rewards gotten by taking an action at states s.
+			gamma : The discount factor for future rewards.
+			cont : A no_states boolean vector indicating if the next states from states s is not terminal.
+			minmax : Use max or min Q values for a next state.
 			hyperparams : A dictionary of training parameters.
 		"""
 		
 		qs = self.predict(s)
 		qs_prime = np.zeros(qs.shape)
 
-		if not term: #Predict qs_prime with prev weights.
-			theta = deepcopy(self.layers)
-			self.layers = self.layers_old
-			qs_prime = self.predict(s_prime)
-			self.layers = theta
+		#Predict qs_prime with prev weights.
+		theta = deepcopy(self.layers)
+		self.layers = self.layers_old
+		qs_prime = self.predict(s_prime)
+		self.layers = theta
 
 		#Set prev weights to the current ones.
 		self.layers_old = deepcopy(self.layers)
 
 		#Change current weights according to update equation
 		dE = np.zeros(qs.shape)
-		dE[:, a] = qs[:, a] - r - (gamma * minmax(qs_prime, axis=1))
+		dE[np.arange(dE.shape[0]), a] = qs[np.arange(qs.shape[0]), a] - r - (gamma * cont * minmax(qs_prime, axis=1))
 		self.backprop(dE)
 		self.update(hyperparams)
 
@@ -78,19 +79,20 @@ class Qnn(Mlp, Qlearn):
 			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
 
 
-	def train(self, s, s_prime, a, r, gamma, term, hyperparameters, minmax):
+	def train(self, s, s_prime, a, r, gamma, cont, hyperparameters, minmax=np.max):
 		"""
-		Train the dqn.
+		Train the qnn using stochastic gradient.
 
 		Args:
 		----
-			s 		: A no_imgs x img_length x img_width array repr a state.
-			s_prime : A no_imgs x img_length x img_width array repr the next state.
-			a 		: Action taken at state s.
-			r 		: A double value repr reward gotten by entering next_state.
-			gamma 	: A double value repr the discount factor.
-			term 	: A boolean value: True if next_state is terminal, False otherwise.
-			hyperparameters : A dictionary of training parameters.
+			s 	: A no_states x no_feats array repr different states s.
+			s_prime : The no_states x no_feats array repr the next state from states s.
+			a 	: A no_states vector of actions taken at states s.
+			r 	: A no_states vector of rewards gotten by taking an action at states s.
+			gamma : The discount factor for future rewards.
+			cont : A no_states boolean vector indicating if the next states from states s is not terminal.
+			minmax : Use max or min Q values for a next state.
+			hyperparams : A dictionary of training parameters.
 		"""
 		
-		self.direct_train(s, s_prime, a, r, gamma, term, hyperparameters, minmax)
+		self.direct_train(s, s_prime, a, r, gamma, cont, hyperparameters, minmax)
