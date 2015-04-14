@@ -13,54 +13,77 @@ from mlp import *
 import qnn
 import qnn_client
 
-# Settings for different gaming environments ####
 
-class globalparam():
-
-    def __init__(self):
-
-        self.GAME='alepong'
+ale_param = {
 
         # pipe names
-        self.GAMEIN = 'ale_fifo_in'
-        self.GAMEOUT = 'ale_fifo_out'
+        'pipein': 'ale_fifo_in',
+        'pipeout': 'ale_fifo_out',
 
         # Server greet regex
         # www-hhh
-        self.GREETREGEX = "([0-9]{3})-([0-9]{3})"
+        'greetregex': "([0-9]{3})-([0-9]{3})",
 
         # Client engage message
         # r,s,k,e
-        self.ENGAGEMSG = '1,0,0,1'
+        'engagemsg':= '1,0,0,1',
 
         # Client move regex
-        self.MOVEREGEX = '%d,0\n'
-
-
-        # moves list
-        self.MOVES = [3,4]
+        'moveregex': '%d,0\n',
 
         # reset action for all
-        self.RESET = 45
+        'reset':45
 
+            }
+
+game_param = {
+
+        # Game specific
+        'game': 'alepong',
+
+        # moves list
+        'moves': [3,4],
 
         # ale specific
-        # screen factorise
-        self.FACT = 8
-        # screen width
-        self.WID = 160 / self.FACT
+        # down sample factor
+        'factor': 8,
+
         # index to crop
-        self.CROP_S = 10880
-        self.CROP_E = 62080
+        'crop_start': 10880,
+        'crop_end': 62080,
         
+        'crop_wid': 160,
+        'crop_hei': 160,
 
         # qnn input
-        self.STATE_FEATURES = self.WID**2
-        # Maximising q function
-        self.MAXIMISE = False
+        'state_features': 400,
 
         # Maximum number of moves in one episode
-        self.MAXMOVES = 10000
+        'maxfames': 10000
+
+             }
+
+
+agent_param = {
+
+        'stack_no': 4,
+        'minbatch_no': 32,
+    
+        'use_rmse_prop': True,
+
+        # Maximising q function
+        'maximise' = False
+
+        'learn_rate': 0.2,
+        'epilson': 0.9,
+        'gamma': 0.8,
+
+
+        'hidden_layers': 2,
+        'hidden_units':[600,600],
+        'out':'sigmoid'
+             
+              }
 
 
 ##################################################
@@ -76,7 +99,7 @@ class ALEclient(qnn_client.gameclient):
            Also translate moves to start from 0
         '''
 
-        m = range(len(self.gp.MOVES))
+        m = range(len(self.gp['moves']))
         return m
 
 
@@ -105,8 +128,17 @@ class ALEclient(qnn_client.gameclient):
         '''Game specific '''
         w, h = self.header
 
+        state = self.crop_grayscale(s)
+
+        # down sample
+        state = block_mean(state, self.gp['factor'])
+
+        return tuple(state.flatten()[0])
+
+    def crop_grayscale(self, s):
+
         # crop
-        s = s[self.gp.CROP_S:self.gp.CROP_E]
+        s = s[self.gp['crop_start']:self.gp['crop_end']]
 
         l = len(s)
         i = 0
@@ -117,11 +149,8 @@ class ALEclient(qnn_client.gameclient):
             state[0,i/2] = int(s[i+1],base=16)/15.0
             i += 2
 
-        # down sample
-        state = block_mean(state.reshape((160,160)), self.gp.FACT)
-
-        return tuple(state.reshape((1, self.gp.STATE_FEATURES))[0])
-
+        return state.reshape(  (self.gp['crop_hei'],self.gp['crop_wid']) )
+        
 
     def reconstruct(self, s):
         ''' Game specific
@@ -155,17 +184,9 @@ def block_mean(ar, fact):
 
 if __name__ == '__main__':
 
-    gp = globalparam()
-
-    nnp = {
-             'learn_rate':0.2,
-             'layers': 2,
-             'hid':[600,600],
-             'out':'sigmoid'
-            }
 
     # BEGIN
-    q1 = ALEclient(gparm = gp, nnparam=nnp)
+    q1 = ALEclient(enparm= ale_parm, gparm = game_param, nnparam=agent_param)
 
     #q1.loadnn()
     #q1.evaluate()
