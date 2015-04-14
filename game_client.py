@@ -125,7 +125,7 @@ class gameclient():
         Inputs:
             epoch: number of cycles
         """
-        self.evaluate(10)
+        #self.evaluate(10)
 
         tstates = []
 
@@ -138,7 +138,7 @@ class gameclient():
                 self.saveexp()
                 self.savenn()
 
-            if len(tstates) < 500:
+            if ep > 0 and len(tstates) < 500:
                 for i in xrange(5):
                     ind = random.choice(self.exp.keys())
                     if tstates != []: tstates = np.vstack((tstates,self.exp[ind][2]))
@@ -182,7 +182,7 @@ class gameclient():
                 self.exp[( s, a, s_ )] = (r_, t_, sf, s_f)
 
                 # train one                
-                if train: self.replay()
+                self.replay()
 
                 if t_ == 1 or j == self.gp.MAXMOVES-1:
                     # Terminal state
@@ -195,10 +195,10 @@ class gameclient():
                     sf = s_f
 
 
-            if train:
-                # train nn on exp
-                for i in range( min(len(self.exp),replay_rate) ):
-                    self.replay()
+            
+            # train nn on exp
+            for i in range( min(len(self.exp),replay_rate) ):
+                self.replay()
 
         # Final evaluation
         self.evaluate(testcount = 1000)
