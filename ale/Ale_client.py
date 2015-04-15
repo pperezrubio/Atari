@@ -1,6 +1,19 @@
+# Copyright (c) 2015 lautimothy, ev0
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 import re
 import numpy as np
-from scipy import ndimage
 import random
 import time
 import sys, os
@@ -11,133 +24,114 @@ sys.path.append('../')
 
 from mlp import *
 import qnn
-import qnn_client
+from game_client import Gameclient
 
 
 ale_param = {
 
-        # pipe names
-        'pipein': 'ale_fifo_in',
-        'pipeout': 'ale_fifo_out',
+    # pipe names
+    'pipein': 'ale_fifo_in',
+    'pipeout': 'ale_fifo_out',
 
-        # Server greet regex
-        # www-hhh
-        'greetregex': "([0-9]{3})-([0-9]{3})",
+    # Server greet regex
+    # www-hhh
+    'greetregex': "([0-9]{3})-([0-9]{3})",
 
-        # Client engage message
-        # r,s,k,e
-        'engagemsg':= '1,0,0,1',
+    # Client engage message
+    # r,s,k,e
+    'engagemsg':= '1,0,0,1',
 
-        # Client move regex
-        'moveregex': '%d,0\n',
+    # Client move regex
+    'moveregex': '%d,0\n',
 
-        # reset action for all
-        'reset':45
-
-            }
+    # reset action for all
+    'reset':45
+}
 
 game_param = {
 
-        # Game specific
-        'game': 'alepong',
+    # Game specific
+    'game': 'alepong',
 
-        # moves list
-        'moves': [3,4],
+    # moves list
+    'moves': [3,4],
 
-        # ale specific
-        # down sample factor
-        'factor': 8,
+    # down sample factor
+    'factor': 8,
 
-        # index to crop
-        'crop_start': 10880,
-        'crop_end': 62080,
-        
-        'crop_wid': 160,
-        'crop_hei': 160,
+    # index to crop
+    'crop_start': 10880,
+    'crop_end': 62080,
+    
+    'crop_wid': 160,
+    'crop_hei': 160,
 
-        # qnn input
-        'state_features': 400,
+    # qnn input
+    'state_features': 400,
 
-        # Maximum number of moves in one episode
-        'maxfames': 10000
-
-             }
+    # Maximum number of moves in one episode
+    'maxframes': 10000
+}
 
 
 agent_param = {
 
-        'stack_no': 4,
-        'minbatch_no': 32,
-    
-        'use_rmse_prop': True,
+    'state_frames': 4,
+    'no_epochs': 1000,
+    'minbatch_no': 32,
 
-        # Maximising q function
-        'maximise' = False
+    'use_rmse_prop': True,
 
-        'learn_rate': 0.2,
-        'epilson': 0.9,
-        'gamma': 0.8,
+    # Maximising q function
+    'maximise' = False
 
+    'learn_rate': 0.2,
+    'min_epilson': 0.1, #Epsilon decay starts at 0.9.
+    'gamma': 0.8,
 
-        'hidden_layers': 2,
-        'hidden_units':[600,600],
-        'out':'sigmoid'
-             
-              }
-
-
-##################################################
+    'hidden_layers': 2,
+    'hidden_units':[600, 600],
+    'out':'sigmoid' 
+}
 
 
-class ALEclient(qnn_client.gameclient):
-
-    ### game specific functions ###
-
-    def validmoves( self, s):
-        '''Game specific. 
-           Return available action for given state
-           Also translate moves to start from 0
-        '''
-
-        m = range(len(self.gp['moves']))
-        return m
-
+class ALEclient(Gameclient):
+    """
+    Ale client class.
+    """
 
     def parse(self, response):
-        ''' Game specific.
+        """
+        Parse an ALE response to a set of 1d frame, reward 
+        and a terminal signal.
 
         Input:
+        ------
             response: list of elements ended by ':'
-        '''
+
+        Returns:
+        --------
+            A greyscaled 1d frame, reward, terminal signal.
+        """
         s, e = response
         t, r = e.split(',')
-
-        s = self.parse_state(s)
-        r = float(r)
-        t = int(t)
- 
-        if r == 1:
-            r = 0
-        elif r == -1:
-            r = 1
         
-        return s, r, t
+        return self.crop_grayscale(s), self.clip_reward(float(r)), int(t)
 
-
-    def parse_state(self, s):
-        '''Game specific '''
-        w, h = self.header
-
-        state = self.crop_grayscale(s)
-
-        # down sample
-        state = block_mean(state, self.gp['factor'])
-
-        return tuple(state.flatten()[0])
 
     def crop_grayscale(self, s):
+        """
+        Crop and grey scale a 1d frame from its string
+        representation s.
 
-        # crop
+        Args:
+        -----
+            s: String representation of a frame.
+
+        Returns:
+        --------
+            Cropped and greyscaled 1d frame.
+        """
         s = s[self.gp['crop_start']:self.gp['crop_end']]
 
         l = len(s)
@@ -149,52 +143,15 @@ class ALEclient(qnn_client.gameclient):
             state[0,i/2] = int(s[i+1],base=16)/15.0
             i += 2
 
-        return state.reshape(  (self.gp['crop_hei'],self.gp['crop_wid']) )
-        
-
-    def reconstruct(self, s):
-        ''' Game specific
-        
-        Input:
-            1D tuple
-
-        Output:
-            2D matrix (1 x no.features)
-        '''
-        #for i in range(20):
-        #    for j in range(20):
-        #        print '{:.3f}'.format(s[i*20+j]),
-        #    print
-
-        #raw_input()
-
-        return np.array([s])
-
-        #return frame
-
-
-def block_mean(ar, fact):
-    sx, sy = ar.shape
-    X, Y = np.ogrid[0:sx, 0:sy]
-    regions = sy/fact * (X/fact) + Y/fact
-    res = ndimage.mean(ar, labels=regions, index=np.arange(regions.max() + 1))
-    res.shape = (sx/fact, sy/fact)
-    return res
+        return state
 
 
 if __name__ == '__main__':
 
-
-    # BEGIN
-    q1 = ALEclient(enparm= ale_parm, gparm = game_param, nnparam=agent_param)
-
-    #q1.loadnn()
-    #q1.evaluate()
-
-    print nnp
+    ale = ALEclient(aleparams=ale_param, gameparams=game_param, agentparams=agent_param)
 
     time1 = time.time()
-    q1.train(epoch=5000)
+    ale.train()
     time2 = time.time()
 
-    print 'TIME:', time2-time1
+    print 'Time to train:', time2 - time1
