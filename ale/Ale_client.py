@@ -39,16 +39,16 @@ ale_param = {
 
     # Client engage message
     # r,s,k,e
-    'engagemsg':= '1,0,0,1',
+    'engagemsg': '1,0,0,1',
 
     # Client move regex
-    'moveregex': '%d,0\n',
+    'moveregex': '%d,18\n',
 
     # reset action for all
     'reset':45
 }
 
-game_param = {
+pong = {
 
     # Game specific
     'game': 'alepong',
@@ -57,7 +57,7 @@ game_param = {
     'moves': [3,4],
 
     # down sample factor
-    'factor': 8,
+    'factor': (8,8),
 
     # index to crop
     'crop_start': 10880,
@@ -69,10 +69,49 @@ game_param = {
     # qnn input
     'state_features': 400,
 
+    # reward
+    'pos_rwd_max': 200,
+    'neg_rwd_max': 1,
+
     # Maximum number of moves in one episode
     'maxframes': 10000
 }
 
+
+spaceinvaders = {
+
+    # Game specific
+    'game': 'alespaceinvaders',
+
+    # moves list
+    'moves': [0,1,3,4,11,12],
+
+    # down sample factor
+    'factor': (8,8),
+
+    # index to crop
+    'crop_start': 10880,
+    'crop_end': 62080,
+    
+    'crop_wid': 160,
+    'crop_hei': 160,
+
+    # qnn input
+    'state_features': 400,
+
+    # reward
+    'pos_rwd_max': 200,
+    'neg_rwd_max': 1,
+
+    # Maximum number of moves in one episode
+    'maxframes': 10000
+}
+
+
+game_param = {
+    'pong':pong,
+    'spaceinvaders': spaceinvaders
+}
 
 agent_param = {
 
@@ -83,8 +122,9 @@ agent_param = {
     'use_rmse_prop': True,
 
     # Maximising q function
-    'maximise' = False
+    'maximise': False,
 
+    'replay_rounds': 500,
     'learn_rate': 0.2,
     'min_epilson': 0.1, #Epsilon decay starts at 0.9.
     'gamma': 0.8,
@@ -132,7 +172,7 @@ class ALEclient(Gameclient):
         --------
             Cropped and greyscaled 1d frame.
         """
-        s = s[self.gp['crop_start']:self.gp['crop_end']]
+        s = s[self.game_params['crop_start']:self.game_params['crop_end']]
 
         l = len(s)
         i = 0
@@ -148,7 +188,7 @@ class ALEclient(Gameclient):
 
 if __name__ == '__main__':
 
-    ale = ALEclient(aleparams=ale_param, gameparams=game_param, agentparams=agent_param)
+    ale = ALEclient(aleparams=ale_param, gameparams=game_param['spaceinvaders'], agentparams=agent_param)
 
     time1 = time.time()
     ale.train()
