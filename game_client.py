@@ -9,6 +9,7 @@ import theano.tensor.signal.downsample as downsample
 import theano as thn
 import theano.tensor as tn
 import math
+from copy import deepcopy
 
 from mlp import *
 import qnn
@@ -18,7 +19,6 @@ import qnn
 # Add reporting for average rewards per epoch.
 # Add reporting for q-value per frame.
 # Add reporting for average score per episode of testing.
-# Modify next state.
 # Modify evaluation functions.
 # Add code to view states (code to view q-values will be in reporting).
 
@@ -95,39 +95,21 @@ class Gameclient():
         """
 
         rand_states = []
+        #TODO: Get rand states here.
 
         for epoch in xrange(self.agent_params['no_epochs']):
 
-            #Evaluate agent performance and get metrics.
-            if ((epoch + 1) % 100) == 0:
-                print 'Epoch: ', epoch + 1
-                print 'No experiences: ', len(self.ERM)
-                self.evaluate_agent()
-                self.get_avg_qvals(rand_states)
-                self.saveexp()
-                self.savenn()
-
-            #Build random states.
-            if epoch > 0 and len(rand_states) < 500:
-                for i in xrange(5):
-                    key = [random.choice(self.ERM.keys())]
-                    if rand_states == []:
-                        rand_states = self.ERM[key][2]
-                    else:
-                        rand_states = np.vstack((rand_states, self.ERM[key][2]))
-
             # restart game
             str_in = self.fin.readline()
-            # send in reset signal
-            self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
+            self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) # send in reset signal
             self.fout.flush()
 
             # get initial state
             str_in = self.fin.readline()
             response = str_in.strip().split(':')[:-1]
-
-            f, r, term = self.parse(response)
-            s = self.create_state([f])
+            frame, reward, term = self.parse(response)
+            state = [frame]
+            phi_s = self.preprocess_state(state)
 
             # if first state is terminal already, next epoch
             if term == 1:
@@ -135,71 +117,48 @@ class Gameclient():
                 self.fout.flush()
                 continue
 
-            # action for first frame
-            a = self.get_agent_action(s, 0, useEp=True)
-
-            k_frames = [f]
-            recent_reward = r
-
             for i in xrange(self.game_params['maxframes'] - 1):
                 
-                # send in action
-                mapped_a = self.map_agent_moves(a)
+                # send action to ale
+                action = self.get_agent_action(phi_s, epoch, useEp=True)
+                mapped_a = self.map_agent_moves(action)
                 self.fout.write(self.ale_params['moveregex'] %  mapped_a[0]) 
                 self.fout.flush()
 
                 # get next frame
                 str_in = self.fin.readline()
                 response = str_in.strip().split(':')[:-1]
-                f, r, term = self.parse(response)
+                frame, reward, term = self.parse(response)
                 
-                # Append frame to k_frame
-                k_frames.append(f)
-                if r != 0:recent_reward = r
+                # append observed frame to sequence of frames to make next state
+                next_state = state[0 : self.agent_params['state_frames'] - 1] + frame
+                phi_sprime = self.preprocess_state(next_state)
+                cont = True
+                if term == 1: cont = False 
 
-                # Get action if first frame
-                if len(k_frames) == 1:
-                    f_ = self.create_state(k_frames)
-                    a = self.get_agent_action(f_, epoch, useEp=True)
-            
-                # if reached state_frames, stack frames into state and put into ERM
-                if (i + 1) % self.agent_params['state_frames'] == 0 or term: 
+                # store transition experience
+                self.ERM[(tuple(phi_s.ravel()), action[0], tuple(phi_sprime.ravel()))] = (reward, cont) #TODO: Reflect in experience replay and preprocess state
 
-                    s_ = self.create_state(k_frames) #Fix how we're getting next states.
+                # perform experience replay on mini-batch
+                self.experience_replay()
 
-                    # Store experience - state, action, next_state, reward, continue (a.k.a not terminal)
-                    cont = True
-                    if term == 1: cont = True
-                    state, nxt_state = s.ravel(), s_.ravel()
-                    self.ERM[(tuple(state), tuple(a), tuple(nxt_state))] = (state, nxt_state, a[0], recent_reward, cont) #Optimize later.
-
-                    # Train agent on a mini-batch                
-                    self.experience_replay()
-
-                    s = s_
-
-                    # Get action
-                    a = self.get_agent_action(s, epoch, useEp=True)
-
-                    k_frames = []
-                    recent_reward = 0
-
+                phi_s, state = phi_sprime, next_state
 
                 if term or i == self.game_params['maxframes']-1:
                     # Terminal state
                     self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
                     self.fout.flush()
                     break
-            
-        # Further train the agent on its experiences.
-        self.replay(self.agent_params['replay_rounds'])
 
-        # Evaluste agent's performance
-        self.evaluate_agent(testcount = 1000)
-        self.get_avg_qvals(rand_states)
+            # Further train the agent on its experiences.
+            self.replay(self.agent_params['replay_rounds'])
+
+            # Evaluste agent's performance
+            self.evaluate_avg_qvals(rand_states)
+            self.evaluate_agent(testcount = 1000)
 
 
-    def create_state(self, frames):
+    def preprocess_state(self, frames): #TODO: work with frames, concatenate frames to one
         """
         Create a game state from a set of frames.
 
@@ -225,7 +184,7 @@ class Gameclient():
         return state.reshape(1, np.prod(state.shape[0:]))
 
 
-    def get_agent_action(self, states, episode, useEp):
+    def get_agent_action(self, states, episode, useEp): #TODO: Mod for epsilon
         """
         Select max actions for the given state based on an epsilon greedy strategy.
 
@@ -254,7 +213,7 @@ class Gameclient():
         if self.agent_params['maximise']:
             nn_moves = np.argmax(qvals, axis=1)
         else:
-            nn_moves = np.argmin(qvals, axis=1) # Must be reflected when training agent!!!
+            nn_moves = np.argmin(qvals, axis=1) #TODO: reflected when training agent!!!
 
         return nn_moves
 
@@ -275,7 +234,7 @@ class Gameclient():
         return [self.game_params['moves'][ind] for ind in nn_moves]
 
 
-    def experience_replay(self, rounds=1):
+    def experience_replay(self, rounds=1): #TODO: for change in ERM, basically processed state, action etc
         """
         Train the agent on a mini-batch of pooled experiences.
 
@@ -319,20 +278,21 @@ class Gameclient():
 
         return r
 
-    def display_img(self, img):
+
+    def display_img(self, img): #TODO: Embed in train() to show downsampled view of states.
 
         plt.imshow(img)
         plt.gray()
         plt.show()
 
 
-    def get_avg_qvals(self, states):
+    def evaluate_avg_qvals(self, states): #TODO: add interactive graphs
         tar = self.qnn.predict(states)
         avgqvs =  np.mean(self.func(tar,1))
 
         print 'AVG OPTIMAL Q-VALUE:', avgqvs
 
-    def evaluate_agent(self, testcount = 500):
+    def evaluate_agent(self, testcount = 500): #TODO: Run agent for fixed episodes and add graph for rewards and qval in a frame
         rounds = 0
         totalmoves = 0
         totalscore = 0
