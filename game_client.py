@@ -5,18 +5,25 @@ import time
 import sys, os
 import itertools
 import cPickle as pickle
+import theano.tensor.signal.downsample as downsample
 
 from mlp import *
 import qnn
 
 
-class gameclient():
+class Gameclient():
+    """
+    Game client module.
+    """
 
-    def __init__(self, gparm, nnparam):
-        """ Initialise qlearning module
+    def __init__(self, aleparams, gameparams, agentparams):
+        """ 
+        Initialize game client.
         """
         
-        self.gp = gparm
+        self.ale_params = aleparams
+        self.game_params = gameparams
+        self.agent_params = agentparams
 
         self.fin = open( self.gp.GAMEOUT )
         self.fout = open( self.gp.GAMEIN ,'w')
@@ -42,7 +49,7 @@ class gameclient():
         else: self.func = np.min
 
         self.qnn = qnn.Qnn( layers )
-        self.exp = {}
+        self.ERM = {}
 
 
     def handshake(self):
@@ -61,88 +68,34 @@ class gameclient():
         rtn = [int(i) for i in reg.groups()]        
                 
         return rtn
-        
-
-    def qv(self,s):
-        ''' return the q values of all actions of state sorted'''
-        inputs = s
-        tar = self.qnn.predict(inputs).T
-
-        aqs = [ [a, tar[a]] for a in self.validmoves(s)]
-
-        return sorted(aqs, key=lambda x:x[1], reverse= self.gp.MAXIMISE)
 
 
-    def qv_set(self,sa):
-        ''' set the q value of state s action a'''
-        s, s_prime, a, r, term = sa
-        self.qnn.train(s, s_prime, a, r, self.gamma, term, self.param, self.func)
-
-   
-    def pi(self,s, progress = 0, opt=0, rand=0):
-        """ Select an action given a state based on present policy (may be optimal or not)
-        Input:
-            s: current state, should not be terminal state
-        Return:
-            a: action based on present policy 
+    def train(self):
         """
-        # get action list for given state
-        if rand: return random.choice(self.validmoves(s))
-
-        aqs = self.qv(s)
-
-        if random.random() > (self.exploit*progress + opt):
-            # exploration (select action randomly)
-            a,q = aqs[int(random.random()*len(aqs))]
-        else:
-            # pick action with max/min q
-            a,q = aqs[0]
-        
-        return a
-
-
-    def maxq(self, s, r, t):
-        """ return max q value of given state s
-
-        Input:
-            s: given state
-            r: reward of given state
-            t: whether state is terminal
-        
-        Returns:
-            q: if s is terminal state, return reward
-               else return reward + max q
+        Trains the agent on the ALE environment.
         """
-        if t: return r
 
-        a,q = self.qv(s)[0]
-        return r + self.lam*q
+        rand_states = None
 
+        for epoch in xrange(self.agent_params['no_epochs']):
 
-    def train(self, epoch=1000, replay_rate=2000):
-        """ Trains the Q matrix on the maze
-        
-        Inputs:
-            epoch: number of cycles
-        """
-        #self.evaluate(10)
-
-        tstates = []
-
-        for ep in range(epoch):
-            if ((ep+1) % 100) == 0 :
-                print '[qlearn] epoch:', ep+1
-                print 'EXP size:', len(self.exp)
-                self.evaluate()
-                self.evaluate_avgqv(tstates)
+            #Evaluate agent performance and get metrics.
+            if ((epoch + 1) % 100) == 0:
+                print 'Epoch: ', epoch + 1
+                print 'No experiences: ', len(self.ERM)
+                self.evaluate_agent()
+                self.evaluate_avgqv(rand_states)
                 self.saveexp()
                 self.savenn()
 
-            if ep > 0 and len(tstates) < 500:
+            #Build random states.
+            if epoch > 0 and len(rand_states) < 500:
                 for i in xrange(5):
-                    ind = random.choice(self.exp.keys())
-                    if tstates != []: tstates = np.vstack((tstates,self.exp[ind][2]))
-                    else: tstates = exp[ind][2]  # index 2 is reconstructed state
+                    key = [random.choice(self.ERM.keys())]
+                    if rand_states is None:
+                        rand_states = self.ERM[key][2]
+                    else:
+                        rand_states = np.vstack((rand_states, self.ERM[key][2]))
 
             # restart game
             str_in = self.fin.readline()
@@ -153,19 +106,24 @@ class gameclient():
             # get initial state
             str_in = self.fin.readline()
             response = str_in.strip().split(':')[:-1]
-            s, r, t = self.parse(response)
-            sf = self.reconstruct(s)
+
+            f, r, t = self.parse(response)
+            k_frames = [self.reconstruct(f)]
+            k = 1
 
             # if first state is terminal already, next epoch
-            if t == 1:
+            if term == 1:
                 self.fout.write(self.gp.MOVEREGEX % self.gp.RESET) 
                 self.fout.flush()
                 continue
 
-            for j in range( self.gp.MAXMOVES ):
-            
+            for i in xrange(self.game_params['max_frames'] - 1):
+                
+                if k < self.agent_params['state_frames']:
+
+
                 # action
-                a = self.pi(sf, progress=float(ep)/epoch ,opt=0)
+                a = self.get_agent_action(sf, progress=float(ep)/epoch ,opt=0)
 
                 # send in action
                 self.fout.write(self.gp.MOVEREGEX % (self.gp.MOVES[a],)) 
@@ -204,6 +162,60 @@ class gameclient():
         self.evaluate(testcount = 1000)
 
 
+    def get_agent_action(self, states, game_moves, min_epsilon, episode, no_episodes, useEp):
+        """
+        Select max actions for the given state based on an epsilon greedy strategy.
+
+        Input:
+            states: A no_states x no_feats. array of states.
+            game_moves: List of moves for current game.
+            min_epsilon: Minimum epsilon.
+            episode: Current episode.
+            no_episodes: Total number of episodes.
+
+        Return:
+            A no_states row vector of actions. 
+        """
+
+        # Epsilon decay. Starts at 0.9.
+        epsilon = max(math.exp(-2 * float(episode)/no_episodes), min_epsilon)
+
+        #Explore
+        if useEp and random.uniform(0, 1) <= epsilon:
+            return np.asarray([random.choice(game_moves) for no_states in xrange(states.shape[0])])
+
+        #Exploit
+        qvals = self.qnn.predict(states)
+        nn_moves = np.argmax(qvals, axis=1)
+        return np.asarray([game_moves[ind] for ind in nn_moves])
+
+
+    def create_state(self, frames, height, width, down_factor):
+        """
+        Create a game state from a set of frames.
+
+        Args:
+        -----
+            frames: 1d game frames to stack.
+            height: 
+
+        Returns:
+        --------
+            A state.
+        """
+
+        stacks = np.zeros((len(frames), height, width), dtype='float64')
+        for frame in frames:
+            stacks[i] = frames[i].reshape(height, width)
+
+        #Get max and downsample
+        x = tn.dmatrix('x')
+        f = thn.function([x], downsample.max_pool_2d(x, factor))
+        state = f(np.max(stacks))
+
+        return state.reshape(1, np.prod(state.shape[0:]))
+
+
     def replay(self):
         ''' Train qnn based on experience'''
 
@@ -211,7 +223,55 @@ class gameclient():
         r_, t_, sf, s_f = self.exp[ind]
         s,a,s_ = ind
 
-        self.qv_set((sf, s_f, a, r_, t_))
+        #self.qv_set((sf, s_f, a, r_, t_))
+        s, s_prime, a, r, term = sa
+        self.qnn.train(s, s_prime, a, r, self.gamma, term, self.param, self.func)
+
+
+    def evaluate_agent(self, testcount = 500):
+        rounds = 0
+        totalmoves = 0
+        totalscore = 0
+        score = 0
+
+        for i in range(testcount):
+
+            j = 0
+            score = 0
+
+            # restart game
+            str_in = self.fin.readline()
+            self.fout.write(self.gp.MOVEREGEX % self.gp.RESET) 
+            self.fout.flush()
+
+            while 1:
+                str_in = self.fin.readline()
+                response = str_in.strip().split(':')[:-1]
+
+                s,r,t = self.parse(response)
+                score += r
+
+                # Terminal state
+                if t==1 or j == self.gp.MAXMOVES:
+                    if j > 0:
+                        rounds += 1
+                        totalscore += score
+                    
+                    self.fout.write(self.gp.MOVEREGEX % self.gp.RESET) 
+                    self.fout.flush()
+                    break
+
+                sf = self.reconstruct(s)
+                a = self.get_agent_action(sf,opt=1)
+                self.fout.write(self.gp.MOVEREGEX % (self.gp.MOVES[a],)) 
+                self.fout.flush()
+                
+                j += 1
+ 
+            totalmoves += j
+
+        print 'AVG NUM MOVES:', float(totalmoves)/rounds
+        print 'AVG SCORE:', float(totalscore)/rounds
               
 
 
@@ -250,62 +310,11 @@ class gameclient():
         avgqvs =  np.mean(self.func(tar,1))
 
         print 'AVG OPTIMAL Q-VALUE:', avgqvs
-
-
-    def evaluate (self, testcount = 500):
-        rounds = 0
-        totalmoves = 0
-        totalscore = 0
-        score = 0
-
-        for i in range(testcount):
-
-            j = 0
-            score = 0
-
-            # restart game
-            str_in = self.fin.readline()
-            self.fout.write(self.gp.MOVEREGEX % self.gp.RESET) 
-            self.fout.flush()
-
-            while 1:
-                str_in = self.fin.readline()
-                response = str_in.strip().split(':')[:-1]
-
-                s,r,t = self.parse(response)
-                score += r
-
-                # Terminal state
-                if t==1 or j == self.gp.MAXMOVES:
-                    if j > 0:
-                        rounds += 1
-                        totalscore += score
-                    
-                    self.fout.write(self.gp.MOVEREGEX % self.gp.RESET) 
-                    self.fout.flush()
-                    break
-
-                sf = self.reconstruct(s)
-                a = self.pi(sf,opt=1)
-                self.fout.write(self.gp.MOVEREGEX % (self.gp.MOVES[a],)) 
-                self.fout.flush()
-                
-                j += 1
- 
-            totalmoves += j
-
-        print 'AVG NUM MOVES:', float(totalmoves)/rounds
-        print 'AVG SCORE:', float(totalscore)/rounds
  
     
 
     ### game specific functions ###
 
-    def validmoves(self, s):
-        '''Game specific. return available action for given state. '''
-
-        m = range(len(self.gp.MOVES))
-        return m
 
 
     def parse(self, response):
