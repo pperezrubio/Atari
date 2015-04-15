@@ -19,6 +19,7 @@ import time
 import sys, os
 import itertools
 import cPickle as pickle
+import matplotlib
 
 sys.path.append('../')
 

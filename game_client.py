@@ -9,6 +9,7 @@ import theano.tensor.signal.downsample as downsample
 import theano as thn
 import theano.tensor as tn
 import math
+import matplotlib.pyplot as plt
 
 from mlp import *
 import qnn
@@ -333,6 +334,11 @@ class Gameclient():
         print 'AVG SCORE:', float(totalscore)/rounds
               
 
+    def display_img(self, img):
+
+        plt.imshow(img)
+        plt.gray()
+        plt.show()
 
     def saveexp(self, filename=None):
         if filename == None:
