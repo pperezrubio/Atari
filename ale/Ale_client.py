@@ -70,7 +70,7 @@ pong = {
     'state_features': 400,
 
     # reward
-    'pos_rwd_max': 200,
+    'pos_rwd_max': 1,
     'neg_rwd_max': 1,
 
     # Maximum number of moves in one episode
@@ -87,14 +87,14 @@ spaceinvaders = {
     'moves': [0,1,3,4,11,12],
 
     # down sample factor
-    'factor': (8,8),
+    'factor': (9,8),
 
     # index to crop
-    'crop_start': 10880,
-    'crop_end': 62080,
+    'crop_start': 2240,
+    'crop_end': 59840,
     
     'crop_wid': 160,
-    'crop_hei': 160,
+    'crop_hei': 180,
 
     # qnn input
     'state_features': 400,
@@ -172,6 +172,7 @@ class ALEclient(Gameclient):
         --------
             Cropped and greyscaled 1d frame.
         """
+
         s = s[self.game_params['crop_start']:self.game_params['crop_end']]
 
         l = len(s)

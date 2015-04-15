@@ -72,7 +72,7 @@ class Gameclient():
         Trains the agent on the ALE environment.
         """
 
-        rand_states = None
+        rand_states = []
 
         for epoch in xrange(self.agent_params['no_epochs']):
 
@@ -89,7 +89,7 @@ class Gameclient():
             if epoch > 0 and len(rand_states) < 500:
                 for i in xrange(5):
                     key = [random.choice(self.ERM.keys())]
-                    if rand_states is None:
+                    if rand_states == []:
                         rand_states = self.ERM[key][2]
                     else:
                         rand_states = np.vstack((rand_states, self.ERM[key][2]))
@@ -198,7 +198,10 @@ class Gameclient():
 
         #Exploit
         qvals = self.qnn.predict(states)
-        nn_moves = np.argmax(qvals, axis=1)
+        if self.agent_params['maximise']:
+            nn_moves = np.argmax(qvals, axis=1)
+        else:
+            nn_moves = np.argmin(qvals, axis=1)
 
         return nn_moves
 
