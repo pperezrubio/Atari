@@ -9,10 +9,18 @@ import theano.tensor.signal.downsample as downsample
 import theano as thn
 import theano.tensor as tn
 import math
-import matplotlib.pyplot as plt
 
 from mlp import *
 import qnn
+
+#TODO:
+# Add reporting for average q-values per epoch.
+# Add reporting for average rewards per epoch.
+# Add reporting for q-value per frame.
+# Add reporting for average score per episode of testing.
+# Modify next state.
+# Modify evaluation functions.
+# Add code to view states (code to view q-values will be in reporting).
 
 
 class Gameclient():
@@ -52,6 +60,17 @@ class Gameclient():
 
         self.ERM = {} #Experience Replay Memory
 
+        self.evaluation_metric = {
+            'latest_epoch_qvals' : [],
+            'avg_qvals_per_epoch' : [],
+
+            'latest_epoch_rewards' : [],
+            'avg_rewards_per_epoch' : [],
+
+            'total_reward_per_test_round':[],
+            'avg_rewards_over_test': []
+        }
+
 
     def handshake(self):
         # initial handshake
@@ -84,7 +103,7 @@ class Gameclient():
                 print 'Epoch: ', epoch + 1
                 print 'No experiences: ', len(self.ERM)
                 self.evaluate_agent()
-                self.evaluate_avgqv(rand_states)
+                self.get_avg_qvals(rand_states)
                 self.saveexp()
                 self.savenn()
 
@@ -136,7 +155,7 @@ class Gameclient():
                 
                 # Append frame to k_frame
                 k_frames.append(f)
-                if r != 0:recent_reward = r 
+                if r != 0:recent_reward = r
 
                 # Get action if first frame
                 if len(k_frames) == 1:
@@ -146,9 +165,13 @@ class Gameclient():
                 # if reached state_frames, stack frames into state and put into ERM
                 if (i + 1) % self.agent_params['state_frames'] == 0 or term: 
 
-                    s_ = self.create_state(k_frames)
+                    s_ = self.create_state(k_frames) #Fix how we're getting next states.
+
                     # Store experience - state, action, next_state, reward, continue (a.k.a not terminal)
-                    self.ERM[( tuple(s.flat), tuple(a), tuple(s_.flat))] = (recent_reward, term, s, s_) # Modify
+                    cont = True
+                    if term == 1: cont = True
+                    state, nxt_state = s.ravel(), s_.ravel()
+                    self.ERM[(tuple(state), tuple(a), tuple(nxt_state))] = (state, nxt_state, a[0], recent_reward, cont) #Optimize later.
 
                     # Train agent on a mini-batch                
                     self.experience_replay()
@@ -168,11 +191,38 @@ class Gameclient():
                     self.fout.flush()
                     break
             
-            # Further train the agent on its experiences.
-            self.experience_replay(self.agent_params['replay_rounds'])
+        # Further train the agent on its experiences.
+        self.replay(self.agent_params['replay_rounds'])
 
         # Evaluste agent's performance
-        self.evaluate(testcount = 1000)
+        self.evaluate_agent(testcount = 1000)
+        self.get_avg_qvals(rand_states)
+
+
+    def create_state(self, frames):
+        """
+        Create a game state from a set of frames.
+
+        Args:
+        -----
+            frames: 1d game frames to stack.
+            height: 
+
+        Returns:
+        --------
+            A state.
+        """
+
+        stacks = np.zeros((len(frames), self.game_params['crop_hei'], self.game_params['crop_wid']), dtype='float64')
+        for i in range(len(frames)):
+            stacks[i] = frames[i].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
+
+        #Get max and downsample
+        x = tn.dmatrix('x')
+        f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor'] ))
+        state = f(np.max(stacks,axis=0))
+        
+        return state.reshape(1, np.prod(state.shape[0:]))
 
 
     def get_agent_action(self, states, episode, useEp):
@@ -225,32 +275,6 @@ class Gameclient():
         return [self.game_params['moves'][ind] for ind in nn_moves]
 
 
-    def create_state(self, frames):
-        """
-        Create a game state from a set of frames.
-
-        Args:
-        -----
-            frames: 1d game frames to stack.
-            height: 
-
-        Returns:
-        --------
-            A state.
-        """
-
-        stacks = np.zeros((len(frames), self.game_params['crop_hei'], self.game_params['crop_wid']), dtype='float64')
-        for i in range(len(frames)):
-            stacks[i] = frames[i].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
-
-        #Get max and downsample
-        x = tn.dmatrix('x')
-        f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor'] ))
-        state = f(np.max(stacks,axis=0))
-        
-        return state.reshape(1, np.prod(state.shape[0:]))
-
-
     def experience_replay(self, rounds=1):
         """
         Train the agent on a mini-batch of pooled experiences.
@@ -262,25 +286,51 @@ class Gameclient():
         batch_size = self.agent_params['batch_size']
 
         for i in xrange(rounds):
-            states = None
+            states, nxt_states, actions, rewards, conts = [], [], [], [], []
+
             keys = [random.choice(self.ERM.keys()) for i in xrange(batch_size)]
-
             for key in keys:
+                state, nxt_state, action, reward, cont = self.ERM[key]
+                states.append(state)
+                nxt_states.append(nxt_state)
+                actions.append(action)
+                rewards.append(reward)
+                conts.append(cont)
 
-                action = np.array(key[1])
-                reward, cont, state, nxt_state = self.ERM[key]
+            self.qnn.train(np.asarray(states), np.asarray(nxt_states), np.asarray(actions), np.asarray(rewards), self.agent_params['gamma'], np.asarray(conts), self.agent_params)
 
-                if states is None:
-                    states, nxt_states, actions, rewards, conts = state, nxt_state, action, reward, cont
-                else:
-                    states = np.vstack((states, state))
-                    nxt_states = np.vstack((nxt_states, nxt_state))
-                    actions = np.vstack((actions, action))
-                    rewards = np.vstack((rewards, reward))
-                    conts = np.vstack((conts, cont))
 
-            self.qnn.train(states, nxt_states, actions, rewards, self.agent_params['gamma'], conts, self.agent_params)
+    def clip_reward(self, r):
+        """
+        Normalise reward according to positive and negative limits.
 
+        Args:
+        -----
+            r: Float repr. reward.
+
+        Return:
+        -------
+            Clipped reward.
+        """
+        if r > 0:
+            r = r / self.game_params['pos_rwd_max']
+        elif r < 0:
+            r = r / self.game_params['neg_rwd_max']
+
+        return r
+
+    def display_img(self, img):
+
+        plt.imshow(img)
+        plt.gray()
+        plt.show()
+
+
+    def get_avg_qvals(self, states):
+        tar = self.qnn.predict(states)
+        avgqvs =  np.mean(self.func(tar,1))
+
+        print 'AVG OPTIMAL Q-VALUE:', avgqvs
 
     def evaluate_agent(self, testcount = 500):
         rounds = 0
@@ -334,11 +384,6 @@ class Gameclient():
         print 'AVG SCORE:', float(totalscore)/rounds
               
 
-    def display_img(self, img):
-
-        plt.imshow(img)
-        plt.gray()
-        plt.show()
 
     def saveexp(self, filename=None):
         if filename == None:
@@ -369,35 +414,7 @@ class Gameclient():
 
         self.qnn =  pickle.load( open(filename,'rb'))
 
-
-    def evaluate_avgqv(self, states):
-        tar = self.qnn.predict(states)
-        avgqvs =  np.mean(self.func(tar,1))
-
-        print 'AVG OPTIMAL Q-VALUE:', avgqvs
- 
-    
-
-    def clip_reward(self, r):
-        '''Normalise reward according to positive and negative limits.
-
-        Args:
-        ----
-            r: reward
- 
-        '''
-
-        if r > 0:
-            r = r / self.game_params['pos_rwd_max']
-        elif r < 0:
-            r = r / self.game_params['neg_rwd_max']
-
-        return r
-
-
-
     ### game specific functions ###
-
 
     def parse(self, response):
         ''' Game specific.
