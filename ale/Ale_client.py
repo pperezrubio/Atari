@@ -117,16 +117,14 @@ agent_param = {
 
     'state_frames': 4,
     'no_epochs': 1000,
-    'minbatch_no': 32,
+    'batch_size': 32,
 
-    'use_rmse_prop': True,
-
-    # Maximising q function
-    'maximise': False,
+    'use_RMSprop': True,
+    'maximise': False, # Maximising q function
 
     'replay_rounds': 500,
     'learn_rate': 0.2,
-    'min_epilson': 0.1, #Epsilon decay starts at 0.9.
+    'min_epilson': 0.1, #Epsilon decay starts at 1.0.
     'gamma': 0.8,
 
     'hidden_layers': 2,

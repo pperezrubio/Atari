@@ -28,30 +28,32 @@ class Gameclient():
         self.game_params = gameparams
         self.agent_params = agentparams
 
-        self.fin = open( self.ale_params['pipeout'] )
-        self.fout = open( self.ale_params['pipein'] ,'w')
+        self.fin = open(self.ale_params['pipeout'])
+        self.fout = open(self.ale_params['pipein'] ,'w')
         
         self.header = self.handshake()
 
-
+        #Construct agent
         if agentparams['hidden_layers'] == 0:
-            layers = [ PerceptronLayer(len(gameparams['moves']), gameparams['state_features'], agentparams['out']) ]
+            layers = [PerceptronLayer(len(gameparams['moves']), gameparams['state_features'], agentparams['out'])]
         else:
             layers = [PerceptronLayer(len(gameparams['moves']), agentparams['hidden_units'][0], agentparams['out'])]
-            for l in xrange(agentparams['hidden_layers']-1):
-                layers.append( PerceptronLayer(agentparams['hidden_units'][l], agentparams['hidden_units'][l+1]) )
-            layers.append( PerceptronLayer(agentparams['hidden_units'][-1], gameparams['state_features']) )
+            for l in xrange(agentparams['hidden_layers'] - 1):
+                layers.append(PerceptronLayer(agentparams['hidden_units'][l], agentparams['hidden_units'][l + 1]))
+            layers.append( PerceptronLayer(agentparams['hidden_units'][-1], gameparams['state_features']))
  
-        if agentparams['maximise']: self.minimax = np.max
-        else: self.minimax = np.min
+        if agentparams['maximise']:
+            self.minimax = np.max
+        else:
+            self.minimax = np.min
 
-        self.qnn = qnn.Qnn( layers )
-        self.ERM = {}
+        self.qnn = qnn.Qnn(layers)
+
+        self.ERM = {} #Experience Replay Memory
 
 
     def handshake(self):
         # initial handshake
-
         while 1:
             str_in = self.fin.readline().strip()
 
@@ -69,7 +71,7 @@ class Gameclient():
 
     def train(self):
         """
-        Trains the agent on the ALE environment.
+        Train agent on the ALE environment.
         """
 
         rand_states = []
@@ -133,27 +135,27 @@ class Gameclient():
                 
                 # Append frame to k_frame
                 k_frames.append(f)
-                if r != 0: recent_reward = r 
+                if r != 0:recent_reward = r 
 
-                # Calculate action if frame is first in stack
+                # Get action if first frame
                 if len(k_frames) == 1:
                     f_ = self.create_state(k_frames)
                     a = self.get_agent_action(f_, epoch, useEp=True)
             
                 # if reached state_frames, stack frames into state and put into ERM
-                if (i+1) % self.agent_params['state_frames'] == 0 or term: 
+                if (i + 1) % self.agent_params['state_frames'] == 0 or term: 
 
                     s_ = self.create_state(k_frames)
 
-                    # add (state,action) pair to experience
-                    self.ERM[( tuple(s.flat), tuple(a), tuple(s_.flat))] = (recent_reward, term, s, s_)
+                    # Store experience - state, action, next_state, reward, continue (a.k.a not terminal)
+                    self.ERM[( tuple(s.flat), tuple(a), tuple(s_.flat))] = (recent_reward, term, s, s_) # Modify
 
-                    # train one                
-                    self.replay()
+                    # Train agent on a mini-batch                
+                    self.experience_replay()
 
                     s = s_
 
-                    # action
+                    # Get action
                     a = self.get_agent_action(s, epoch, useEp=True)
 
                     k_frames = []
@@ -166,11 +168,10 @@ class Gameclient():
                     self.fout.flush()
                     break
             
-            # train nn on exp
-            for i in range( min(len(self.ERM), self.agent_params['replay_rounds']) ):
-                self.replay()
+        # Further train the agent on its experiences.
+        self.replay(self.agent_params['replay_rounds'])
 
-        # Final evaluation
+        # Evaluste agent's performance
         self.evaluate(testcount = 1000)
 
 
@@ -178,7 +179,8 @@ class Gameclient():
         """
         Select max actions for the given state based on an epsilon greedy strategy.
 
-        Input:
+        Args:
+        ------
             states: A no_states x no_feats. array of states.
             game_moves: List of moves for current game.
             min_epsilon: Minimum epsilon.
@@ -186,11 +188,12 @@ class Gameclient():
             no_episodes: Total number of episodes.
 
         Return:
+        -------
             A no_states row vector of actions. 
         """
 
-        # Epsilon decay. Starts at 0.9.
-        epsilon = max(math.exp(-2 * float(episode)/self.agent_params['no_epochs'])-0.1, self.agent_params['min_epilson'])
+        # Epsilon decay. Starts at 1.0.
+        epsilon = max(math.exp(-5 * float(episode)/self.agent_params['no_epochs']), self.agent_params['min_epilson'])
 
         #Explore
         if useEp and random.uniform(0, 1) <= epsilon:
@@ -201,17 +204,22 @@ class Gameclient():
         if self.agent_params['maximise']:
             nn_moves = np.argmax(qvals, axis=1)
         else:
-            nn_moves = np.argmin(qvals, axis=1)
+            nn_moves = np.argmin(qvals, axis=1) # Must be reflected when training agent!!!
 
         return nn_moves
 
 
     def map_agent_moves(self, nn_moves):
-        """ Map agent moves to valid game moves
+        """
+        Map agent moves to valid game moves.
         
         Args:
         -----
-            nn_moves: index of moves returned by agent
+            nn_moves: Index of moves returned by agent.
+
+        Return:
+        -------
+            Valid moves for this game.
         """
 
         return [self.game_params['moves'][ind] for ind in nn_moves]
@@ -243,16 +251,29 @@ class Gameclient():
         return state.reshape(1, np.prod(state.shape[0:]))
 
 
-    def replay(self):
-        ''' Train qnn based on experience'''
+    def experience_replay(self, rounds=1):
+        """
+        Train the agent on a mini-batch of pooled experiences.
 
-        ind = random.choice(self.ERM.keys())
-        r_, t_, sf, s_f = self.ERM[ind]
-        s,a,s_ = ind
+        Args:
+        -----
+            rounds: Replay rounds.
+        """
+        batch_size = self.agent_params['batch_size']
 
-        pass
+        for i in xrange(rounds):
+            states, nxt_states, actions, rewards, conts = [], [], [], [], []
 
-        #self.qnn.train(sf, s_f, a, r_, self.gamma, t_, self.agent_params, self.minimax)
+            keys = [random.choice(self.ERM.keys()) for i in xrange(batch_size)]
+            for key in keys:
+                state, action, nxt_state, reward, cont = self.ERM[key]
+                states.append(state)
+                nxt_states.append(nxt_state)
+                actions.append(action)
+                rewards.append(reward)
+                conts.append(cont)
+
+            self.qnn.train(np.asarray([states]), np.asarray([next_states]), np.asarray(actions), np.asarray(rewards), self.agent_params['gamma'], np.asarray(conts), self.agent_params)
 
 
     def evaluate_agent(self, testcount = 500):
