@@ -150,7 +150,7 @@ class ALEclient(Gameclient):
 
         Returns:
         --------
-            A greyscaled 1d frame, reward, terminal signal.
+            A greyscaled vector repr. frame, reward, terminal signal.
         """
         s, e = response
         t, r = e.split(',')
@@ -169,21 +169,21 @@ class ALEclient(Gameclient):
 
         Returns:
         --------
-            Cropped and greyscaled 1d frame.
+            Cropped and greyscaled vector repr. frame.
         """
 
         s = s[self.game_params['crop_start']:self.game_params['crop_end']]
 
         l = len(s)
         i = 0
-        state = np.zeros((1,l/2))
+        frame = np.zeros((l/2,))
 
         # grayscale: select only hue of pixel color
         while i < l:
-            state[0,i/2] = int(s[i+1],base=16)/15.0
+            frame[i/2] = int(s[i+1],base=16)/15.0
             i += 2
 
-        return state
+        return frame
 
 
 if __name__ == '__main__':

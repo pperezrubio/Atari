@@ -134,7 +134,7 @@ class Gameclient():
             for i in xrange(self.game_params['maxframes'] - 1):
                 
                 # send action to ale
-                action = self.get_agent_action(phi_s, epoch, useEp=True)
+                action = self.get_agent_action(phi_s, epoch)
                 mapped_a = self.map_agent_moves(action)
                 self.fout.write(self.ale_params['moveregex'] %  mapped_a[0]) 
                 self.fout.flush()
@@ -172,33 +172,34 @@ class Gameclient():
             self.evaluate_agent(testcount = 1000)
 
 
-    def preprocess_state(self, frames): #TODO: work with frames, concatenate frames to one
+    def preprocess_state(self, state): #TODO: Display to cross check.
         """
-        Create a game state from a set of frames.
+        Preprocess a sequence of frames that make up a state.
 
         Args:
         -----
-            frames: 1d game frames to stack.
-            height: 
+            state: A sequence of frames.
 
         Returns:
         --------
-            A state.
+            Preprocessed state    
         """
+        N, m, n = self.agent_params['state_frames'], self.game_params['crop_hei'], self.game_params['crop_wid']
+        maxed = np.zeros((N, m, n), dtype='float64')
 
-        stacks = np.zeros((len(frames), self.game_params['crop_hei'], self.game_params['crop_wid']), dtype='float64')
-        for i in range(len(frames)):
-            stacks[i] = frames[i].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
+        # max pool and downsample
+        maxed[0] = state[0].reshape(m, n)
+        for i in xrange(1, len(state)):
+            maxed[i] = np.max(np.asarray(state[i - 1: i]), axis=0).reshape(m, n)
 
-        #Get max and downsample
         x = tn.dmatrix('x')
-        f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor'] ))
-        state = f(np.max(stacks,axis=0))
+        f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor']))
+        downsampled = f(maxed)
         
-        return state.reshape(1, np.prod(state.shape[0:]))
+        return downsampled.reshape(1, np.prod(downsampled.shape[0:])) #Stack
 
 
-    def get_agent_action(self, states, episode, useEp): #TODO: Mod for epsilon
+    def get_agent_action(self, states, episode, useEpsilon=None):
         """
         Select max actions for the given state based on an epsilon greedy strategy.
 
@@ -214,15 +215,17 @@ class Gameclient():
         -------
             A no_states row vector of actions. 
         """
-
-        # Epsilon decay. Starts at 1.0.
-        epsilon = max(math.exp(-5 * float(episode)/self.agent_params['no_epochs']), self.agent_params['min_epilson'])
+        
+        epsilon = useEpsilon
+        if epsilon is None:
+            # Epsilon decay. Starts at 1.0.
+            epsilon = max(math.exp(-5 * float(episode)/self.agent_params['no_epochs']), self.agent_params['min_epilson'])
 
         #Explore
-        if useEp and random.uniform(0, 1) <= epsilon:
+        if random.uniform(0, 1) <= epsilon:
             return np.asarray([random.choice(range(len(self.game_params['moves']))) for no_states in xrange(states.shape[0])])
 
-        #Exploit
+        #Else exploit
         qvals = self.qnn.predict(states)
         if self.agent_params['maximise']:
             nn_moves = np.argmax(qvals, axis=1)
@@ -248,7 +251,7 @@ class Gameclient():
         return [self.game_params['moves'][ind] for ind in nn_moves]
 
 
-    def experience_replay(self, rounds=1): #TODO: for change in ERM, basically processed state, action etc
+    def experience_replay(self, rounds=1):
         """
         Train the agent on a mini-batch of pooled experiences.
 
@@ -260,12 +263,14 @@ class Gameclient():
 
         for i in xrange(rounds):
             states, nxt_states, actions, rewards, conts = [], [], [], [], []
-
             keys = [random.choice(self.ERM.keys()) for i in xrange(batch_size)]
+
             for key in keys:
-                state, nxt_state, action, reward, cont = self.ERM[key]
-                states.append(state)
-                nxt_states.append(nxt_state)
+                phi_s, action, phi_sprime = key
+                reward, cont = self.ERM[key]
+
+                states.append(phi_s)
+                nxt_states.append(phi_sprime)
                 actions.append(action)
                 rewards.append(reward)
                 conts.append(cont)
@@ -343,7 +348,7 @@ class Gameclient():
 
                 if j % self.agent_params['state_frames'] == 0:
                     s = self.re(k_frames)
-                    a = self.get_agent_action(s, useEp=0)
+                    a = self.get_agent_action(s, epoch,useEp=0.05)
                     k_frames = []
 
                 mapped_a = self.map_agentmoves(a)
