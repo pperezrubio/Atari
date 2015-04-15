@@ -146,7 +146,6 @@ class Gameclient():
                 if (i + 1) % self.agent_params['state_frames'] == 0 or term: 
 
                     s_ = self.create_state(k_frames)
-
                     # Store experience - state, action, next_state, reward, continue (a.k.a not terminal)
                     self.ERM[( tuple(s.flat), tuple(a), tuple(s_.flat))] = (recent_reward, term, s, s_) # Modify
 
@@ -168,8 +167,8 @@ class Gameclient():
                     self.fout.flush()
                     break
             
-        # Further train the agent on its experiences.
-        self.replay(self.agent_params['replay_rounds'])
+            # Further train the agent on its experiences.
+            self.experience_replay(self.agent_params['replay_rounds'])
 
         # Evaluste agent's performance
         self.evaluate(testcount = 1000)
@@ -262,18 +261,24 @@ class Gameclient():
         batch_size = self.agent_params['batch_size']
 
         for i in xrange(rounds):
-            states, nxt_states, actions, rewards, conts = [], [], [], [], []
-
+            states = None
             keys = [random.choice(self.ERM.keys()) for i in xrange(batch_size)]
-            for key in keys:
-                state, action, nxt_state, reward, cont = self.ERM[key]
-                states.append(state)
-                nxt_states.append(nxt_state)
-                actions.append(action)
-                rewards.append(reward)
-                conts.append(cont)
 
-            self.qnn.train(np.asarray([states]), np.asarray([next_states]), np.asarray(actions), np.asarray(rewards), self.agent_params['gamma'], np.asarray(conts), self.agent_params)
+            for key in keys:
+
+                action = np.array(key[1])
+                reward, cont, state, nxt_state = self.ERM[key]
+
+                if states is None:
+                    states, nxt_states, actions, rewards, conts = state, nxt_state, action, reward, cont
+                else:
+                    states = np.vstack((states, state))
+                    nxt_states = np.vstack((nxt_states, nxt_state))
+                    actions = np.vstack((actions, action))
+                    rewards = np.vstack((rewards, reward))
+                    conts = np.vstack((conts, cont))
+
+            self.qnn.train(states, nxt_states, actions, rewards, self.agent_params['gamma'], conts, self.agent_params)
 
 
     def evaluate_agent(self, testcount = 500):
