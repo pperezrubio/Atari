@@ -437,7 +437,7 @@ class Gameclient():
 
                 a = self.get_agent_action(phi_sprime, 0, useEpsilon=Epsil)
 
-                if select_rand: states.append(phi_sprime)
+                if select_rand: states.append(phi_sprime.ravel())
              
                 mapped_a = self.map_agent_moves(a)
                 self.fout.write(self.ale_params['moveregex'] % mapped_a[0]) 
