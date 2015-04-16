@@ -206,7 +206,7 @@ class Gameclient():
             plt.figure(1)
             plt.clf()
             plt.imshow(s, 'gray')
-            plt.pause(0.5)
+            plt.pause(0.01)
         
         return downsampled.reshape(1, np.prod(downsampled.shape[0:])) #Stack
 
