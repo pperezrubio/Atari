@@ -51,8 +51,6 @@ ale_param = {
     'display_state': True
 }
 
-
-
 pong = {
 
     # Game specific
@@ -80,7 +78,6 @@ pong = {
     'maxframes': 10000
 }
 
-
 spaceinvaders = {
 
     # Game specific
@@ -107,8 +104,6 @@ spaceinvaders = {
     'maxframes': 10000
 }
 
-
-
 breakout = {
 
     # Game specific
@@ -134,9 +129,6 @@ breakout = {
     # Maximum number of moves in one episode
     'maxframes': 10000
 }
-
-
-
 
 seaquest = {
 

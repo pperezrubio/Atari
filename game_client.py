@@ -31,6 +31,27 @@ import qnn
 
 #TODO: Add reporting for q-value per frame.
 
+ale_legal_moves = {
+    0  : 'noop',
+    1  : 'fire',
+    2  : 'up',
+    3  : 'right',
+    4  : 'left',
+    5  : 'down',
+    6  : 'up-right',
+    7  : 'up-left',
+    8  : 'down-right',
+    9  : 'down-left',
+    10 : 'up-fire',
+    11 : 'right-fire',
+    12 : 'left-fire',
+    13 : 'down-fire',
+    14 : 'up-right-fire',
+    15 : 'up-left-fire',
+    16 : 'down-right-fire',
+    17 : 'down-left-fire'
+}
+
 
 class Gameclient():
     """
@@ -83,6 +104,8 @@ class Gameclient():
             'avg_rewards_per_epoch' : []
         }
 
+        plt.ion() #Interactive plots.
+
 
     def handshake(self):
         # initial handshake
@@ -107,10 +130,11 @@ class Gameclient():
         """
 
         # get random states
-        rand_states = self.evaluate_agent(testcount=10, select_rand=1 )
+        print 'Getting set of states to hold out...'
+        rand_states = self.evaluate_agent(testcount=10, select_rand=0)
         self.reset_metrics()
-        #plt.ion()
 
+        print 'Training agent on ALE ' + self.agent_params['name'] + '...'
         for epoch in xrange(self.agent_params['no_epochs']):
 
             self.evaluation_metric['epoch'].append(epoch)
@@ -134,10 +158,13 @@ class Gameclient():
                 continue
 
             for i in xrange(self.game_params['maxframes'] - 1):
+
+                print 'Epoch: ' + epoch + ' , Move: ' + i + '.'
                 
                 # send action to ale
                 action = self.get_agent_action(phi_s, epoch)
                 mapped_a = self.map_agent_moves(action)
+                print 'Selected action: ' + ale_available_moves['mapped_a'] + '.'
                 self.fout.write(self.ale_params['moveregex'] %  mapped_a[0]) 
                 self.fout.flush()
 
@@ -235,10 +262,13 @@ class Gameclient():
 
         #Explore
         if random.uniform(0, 1) <= epsilon:
+            print 'Executing random action.'
             return np.asarray([random.choice(range(len(self.game_params['moves']))) for no_states in xrange(states.shape[0])])
 
         #Else exploit
+        print 'Executing policy based action.'
         qvals = self.qnn.predict(states)
+        print qvals #Sub with print matrix later on.
         if self.agent_params['maximise']:
             nn_moves = np.argmax(qvals, axis=1)
         else:
@@ -274,6 +304,7 @@ class Gameclient():
         batch_size = self.agent_params['batch_size']
 
         for i in xrange(rounds):
+            print 'Performing round ' + i + ' of experience replay on mini-batch size of ' + batch_size + '.'
             states, nxt_states, actions, rewards, conts = [], [], [], [], []
             keys = [random.choice(self.ERM.keys()) for i in xrange(batch_size)]
 
@@ -336,6 +367,7 @@ class Gameclient():
         --------
             Average Q-values over states.
         """ 
+        print 'Evaluating average Q value for held out states...'
         avg_qval = np.mean(minmax(self.qnn.predict(states), axis=1))
         self.evaluation_metric['avg_qvals_per_epoch'].append(avg_qval)
         plt.figure(2)
