@@ -60,7 +60,7 @@ game_param = {
         'name': 'Ale Pong',
 
         # moves list
-        'moves': [2, 5],
+        'moves': [3, 4],
 
         # down sample factor
         'factor': (8,8),
