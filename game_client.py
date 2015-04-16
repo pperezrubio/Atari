@@ -139,6 +139,12 @@ class Gameclient():
                 continue
 
             for i in xrange(self.game_params['maxframes'] - 1):
+
+                if self.ale_params['display_state']:
+                    s = state[len(state) - 1].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
+                    plt.clf()
+                    
+
                 
                 # send action to ale
                 action = self.get_agent_action(phi_s, epoch)
@@ -155,7 +161,7 @@ class Gameclient():
                 next_state = state[0 : self.agent_params['state_frames'] - 1] + frame
                 phi_sprime = self.preprocess_state(next_state)
                 cont = True
-                if term == 1: cont = False 
+                if term == 1: cont = False
 
                 # store transition experience
                 self.ERM[(tuple(phi_s.ravel()), action[0], tuple(phi_sprime.ravel()))] = (reward, cont)
@@ -311,7 +317,7 @@ class Gameclient():
         return r
 
 
-    def display_img(self, img): #TODO: Embed in train() to show downsampled view of states.
+    def display_img(self, fr): #TODO: Embed in train() to show downsampled view of states.
 
         plt.imshow(img)
         plt.gray()

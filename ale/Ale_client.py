@@ -47,6 +47,8 @@ ale_param = {
 
     # reset action for all
     'reset':45
+
+    'display_state': True
 }
 
 pong = {
