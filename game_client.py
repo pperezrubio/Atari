@@ -24,6 +24,7 @@ import theano as thn
 import theano.tensor as tn
 import math
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
 from mlp import *
 import qnn
@@ -75,7 +76,9 @@ class Gameclient():
         self.ERM = {} #Experience Replay Memory
 
         self.evaluation_metric = {
-            'latest_epoch_qvals' : [],
+
+            'epoch': [],
+
             'avg_qvals_per_epoch' : [],
 
             'latest_epoch_rewards' : [],
@@ -109,9 +112,14 @@ class Gameclient():
         """
 
         rand_states = []
+
+        reset_metrics()
+        plt.ion()
         #TODO: Get rand states here.
 
         for epoch in xrange(self.agent_params['no_epochs']):
+
+            self.evaluation_metric['epoch'].append(epoch)
 
             # restart game
             str_in = self.fin.readline()
@@ -151,7 +159,7 @@ class Gameclient():
                 if term == 1: cont = False 
 
                 # store transition experience
-                self.ERM[(tuple(phi_s.ravel()), action[0], tuple(phi_sprime.ravel()))] = (reward, cont) #TODO: Reflect in experience replay and preprocess state
+                self.ERM[(tuple(phi_s.ravel()), action[0], tuple(phi_sprime.ravel()))] = (reward, cont)
 
                 # perform experience replay on mini-batch
                 self.experience_replay()
@@ -167,8 +175,14 @@ class Gameclient():
             # Further train the agent on its experiences.
             self.replay(self.agent_params['replay_rounds'])
 
-            # Evaluste agent's performance
-            self.evaluate_avg_qvals(rand_states)
+            # Evaluate agent's performance
+            # Predict average q vals
+            avg_qval = self.evaluate_avg_qvals(rand_states)
+            self.evaluation_metric['avg_qvals_per_epoch'].append(avg_qval)
+            #Do axis ish and all that
+            plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_qvals_per_epoch'], 'r-')
+            plt.draw()
+
             self.evaluate_agent(testcount = 1000)
 
 
@@ -305,11 +319,37 @@ class Gameclient():
         plt.show()
 
 
-    def evaluate_avg_qvals(self, states): #TODO: add interactive graphs
-        tar = self.qnn.predict(states)
-        avgqvs =  np.mean(self.func(tar,1))
+    def reset_metrics():
 
-        print 'AVG OPTIMAL Q-VALUE:', avgqvs
+        self.evaluation_metric = {
+
+            'epoch': [],
+
+            'avg_qvals_per_epoch' : [],
+
+            'latest_epoch_rewards' : [],
+            'avg_rewards_per_epoch' : [],
+
+            'total_reward_per_test_round':[],
+            'avg_rewards_over_test': []
+        }
+
+
+
+    def evaluate_avg_qvals(self, states, minmax=np.max):
+        """
+        Return the agent's average Q-values over a set of states.
+
+        Args:
+        -----
+            states: A set of states.
+
+        Returns:
+        --------
+            Average Q-values over states.
+        """ 
+        return np.mean(minmax(self.qnn.predict(states), axis=1))
+
 
     def evaluate_agent(self, testcount = 500): #TODO: Run agent for fixed episodes and add graph for rewards and qval in a frame
         rounds = 0
