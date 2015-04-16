@@ -58,7 +58,7 @@ class Gameclient():
         self.header = self.handshake()
 
         # Calculating inputs to qnn
-        gameparams['state_features'] = (gameparams['crop_wid']/gameparams['factor']) * (gameparams['crop_hei']/gameparams['factor']) * agent_param['state_frames']
+        gameparams['state_features'] = (gameparams['crop_hei']/gameparams['factor'][0]) * (gameparams['crop_wid']/gameparams['factor'][1]) * agentparams['state_frames']
 
         #Construct agent
         if agentparams['hidden_layers'] == 0:
@@ -405,7 +405,7 @@ class Gameclient():
 
                 # shift frame window
                 frames.append(f)
-                if len(frames) > self.agent_params['state_frames']+1: frames.pop(0)
+                if len(frames) > self.agent_params['state_frames']: frames.pop(0)
 
                 phi_sprime = self.preprocess_state(frames)
 
