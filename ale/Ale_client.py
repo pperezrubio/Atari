@@ -70,7 +70,7 @@ pong = {
     'crop_hei': 160,
 
     # qnn input
-    'state_features': 400,
+    'state_features': 1600,
 
     # reward
     'pos_rwd_max': 1,
@@ -100,7 +100,7 @@ spaceinvaders = {
     'crop_hei': 180,
 
     # qnn input
-    'state_features': 400,
+    'state_features': 1600,
 
     # reward
     'pos_rwd_max': 200,
