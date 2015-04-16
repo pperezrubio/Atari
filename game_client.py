@@ -201,11 +201,11 @@ class Gameclient():
         downsampled = f(maxed)
 
         if self.ale_params['display_state']:
-            s = downsampled[-1].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
+            s = downsampled[-1].reshape(m/self.game_params['factor'][0],n/self.game_params['factor'][1])
             plt.figure(1)
             plt.clf()
             plt.imshow(s, 'gray')
-            plt.pause(0.5)
+            plt.pause(0.01)
         
         return downsampled.reshape(1, np.prod(downsampled.shape[0:])) #Stack
 

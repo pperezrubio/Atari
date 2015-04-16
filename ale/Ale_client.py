@@ -46,10 +46,12 @@ ale_param = {
     'moveregex': '%d,18\n',
 
     # reset action for all
-    'reset':45
+    'reset':45,
 
     'display_state': True
 }
+
+
 
 pong = {
 
@@ -88,14 +90,14 @@ spaceinvaders = {
     'moves': [0,1,3,4,11,12],
 
     # down sample factor
-    'factor': (9,8),
+    'factor': (8,8),
 
     # index to crop
-    'crop_start': 2240,
+    'crop_start': 8640, #2240
     'crop_end': 59840,
     
     'crop_wid': 160,
-    'crop_hei': 180,
+    'crop_hei': 160,
 
     # reward
     'pos_rwd_max': 200,
@@ -106,29 +108,94 @@ spaceinvaders = {
 }
 
 
+
+breakout = {
+
+    # Game specific
+    'name': 'alebreakout',
+
+    # moves list
+    'moves': [0,1,3,4],
+
+    # down sample factor
+    'factor': (8,8),
+
+    # index to crop
+    'crop_start': 9600,
+    'crop_end': 60800,
+    
+    'crop_wid': 160,
+    'crop_hei': 160,
+
+    # reward
+    'pos_rwd_max': 2,
+    'neg_rwd_max': 1,
+
+    # Maximum number of moves in one episode
+    'maxframes': 10000
+}
+
+
+
+
+seaquest = {
+
+    # Game specific
+    'name': 'aleseaquest',
+
+    # moves list
+    'moves': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17],
+
+    # down sample factor
+    'factor': (8,8),
+
+    # index to crop
+    'crop_start': 8320,
+    'crop_end': 59520,
+    
+    'crop_wid': 160,
+    'crop_hei': 160,
+
+    # reward
+    'pos_rwd_max': 20,
+    'neg_rwd_max': 1,
+
+    # Maximum number of moves in one episode
+    'maxframes': 10000
+}
+
+
+
+
 game_param = {
     'pong':pong,
-    'spaceinvaders': spaceinvaders
+    'spaceinvaders': spaceinvaders,
+    'breakout': breakout,
+    'seaquest': seaquest
 }
+
+
 
 agent_param = {
 
-    'state_frames': 4,
+    'state_frames': 2,
     'no_epochs': 1000,
     'batch_size': 32,
 
     'use_RMSprop': True,
     'maximise': False, # Maximising q function
 
-    'replay_rounds': 500,
+    'replay_rounds': 10,
     'learn_rate': 0.2,
     'min_epilson': 0.1, #Epsilon decay starts at 1.0.
     'gamma': 0.8,
 
     'hidden_layers': 2,
-    'hidden_units':[600, 600],
-    'out':'sigmoid' 
+    'hidden_units':[1000, 1000],
+    'out':'sigmoid'
+
 }
+
 
 
 class ALEclient(Gameclient):
