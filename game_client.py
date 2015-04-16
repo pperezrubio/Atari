@@ -112,8 +112,8 @@ class Gameclient():
         """
 
         # get random states
-        rand_states = self.evalute_agent(testcount=100, select_rand=1 )
-        reset_metrics()
+        #rand_states = self.evaluate_agent(testcount=100, select_rand=1 )
+        self.reset_metrics()
         #plt.ion()
 
         for epoch in xrange(self.agent_params['no_epochs']):
@@ -153,6 +153,7 @@ class Gameclient():
                 
                 # append observed frame to sequence of frames to make next state
                 next_state = state[0 : self.agent_params['state_frames'] - 1] + frame
+
                 phi_sprime = self.preprocess_state(next_state)
                 cont = True
                 if term == 1: cont = False 
@@ -172,7 +173,7 @@ class Gameclient():
                     break
 
             # Further train the agent on its experiences.
-            self.replay(self.agent_params['replay_rounds'])
+            self.experience_replay(self.agent_params['replay_rounds'])
 
             # Evaluate agent's performance
             # Predict average q vals
@@ -205,7 +206,7 @@ class Gameclient():
         for i in xrange(1, len(state)):
             maxed[i] = np.max(np.asarray(state[i - 1: i]), axis=0).reshape(m, n)
 
-        x = tn.dmatrix('x')
+        x = tn.dtensor3('x')
         f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor']))
         downsampled = f(maxed)
         
@@ -318,7 +319,7 @@ class Gameclient():
         plt.show()
 
 
-    def reset_metrics():
+    def reset_metrics(self):
 
         self.evaluation_metric = {
 
@@ -371,7 +372,7 @@ class Gameclient():
             self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
             self.fout.flush()
 
-            frames = []
+            frames = [np.zeros((self.game_params['crop_hei']*self.game_params['crop_wid']))  for i in range(self.agent_params['state_frames']+1)]
 
             while 1:
                 str_in = self.fin.readline()
@@ -390,16 +391,17 @@ class Gameclient():
                     self.fout.flush()
                     break
 
+                # shift frame window
                 frames.append(f)
-                if len(frames) > self.agent_params['state_frames']: frames.pop(0)
+                if len(frames) > self.agent_params['state_frames']+1: frames.pop(0)
 
                 phi_sprime = self.preprocess_state(frames)
 
-                a = self.get_agent_action(phi_sprime, epoch, useEp=Epsil)
+                a = self.get_agent_action(phi_sprime, 0, useEpsilon=Epsil)
 
                 if select_rand: states.append(phi_sprime)
              
-                mapped_a = self.map_agentmoves(a)
+                mapped_a = self.map_agent_moves(a)
                 self.fout.write(self.ale_params['moveregex'] % mapped_a[0]) 
                 self.fout.flush()
                 
@@ -445,37 +447,4 @@ class Gameclient():
 
         self.qnn =  pickle.load( open(filename,'rb'))
 
-    ### game specific functions ###
-
-    def parse(self, response):
-        ''' Game specific.
-
-        Input:
-            response: list of elements ended by ':'
-        '''
-        s, r, t = response
-        s = self.parse_state(s)
-        
-        return s,float(r),int(t)
-
-
-    def parse_state(self, s):
-        '''Game specific '''
-        w, h = self.header
-
-        state = s
-
-        return state
-
-
-    def reconstruct(self, s):
-        ''' Game specific
-        
-        Input:
-            1D tuple
-
-        Output:
-            2D matrix (1 x no.features)
-        '''
-        return np.array([s])
 
