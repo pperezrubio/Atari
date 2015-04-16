@@ -46,7 +46,7 @@ ale_param = {
     'moveregex': '%d,18\n',
 
     # reset action for all
-    'reset':45
+    'reset':45,
 
     'display_state': True
 }

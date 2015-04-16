@@ -189,6 +189,7 @@ class Gameclient():
             Preprocessed state    
         """
         N, m, n = self.agent_params['state_frames'], self.game_params['crop_hei'], self.game_params['crop_wid']
+        factor = self.game_params['factor']
         maxed = np.zeros((N, m, n), dtype='float64')
 
         # max pool and downsample
@@ -197,11 +198,11 @@ class Gameclient():
             maxed[i] = np.max(np.asarray(state[i - 1: i]), axis=0).reshape(m, n)
 
         x = tn.dtensor3('x')
-        f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor']))
+        f = thn.function([x], downsample.max_pool_2d(x, factor))
         downsampled = f(maxed)
 
         if self.ale_params['display_state']:
-            s = downsampled[-1].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
+            s = downsampled[-1].reshape(m / factor[0], n / factor[1])
             plt.figure(1)
             plt.clf()
             plt.imshow(s, 'gray')
