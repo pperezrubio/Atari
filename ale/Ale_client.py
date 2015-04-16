@@ -118,14 +118,14 @@ game_param = {
         'factor': (8,8),
 
         # index to crop
-        'crop_start': 9600,
-        'crop_end': 60800,
-        
+        'crop_start': 9600, #15040,
+        'crop_end': 60800, #66240,
+    
         'crop_wid': 160,
         'crop_hei': 160,
 
         # reward
-        'pos_rwd_max': 2,
+        'pos_rwd_max': 20,
         'neg_rwd_max': 1,
 
         # Maximum number of moves in one episode
@@ -235,8 +235,8 @@ class ALEclient(Gameclient):
 
 if __name__ == '__main__':
 
-    # Additionally, load bin for selected game in run.sh !!!
-    ale = ALEclient(aleparams=ale_param, gameparams=game_param['pong'], agentparams=agent_param)
+    game = sys.argv[1].rstrip('.bin')
+    ale = ALEclient(aleparams=ale_param, gameparams=game_param[game], agentparams=agent_param)
 
     time1 = time.time()
     ale.train()

@@ -132,7 +132,7 @@ class Gameclient():
 
         # get random states
         print 'Getting set of states to hold out...'
-        #rand_states = self.evaluate_agent(testcount=10, select_rand=0)
+        rand_states = self.evaluate_agent(testcount=1, select_rand=1 )
         self.reset_metrics()
 
         print 'Training agent on ALE ' + self.game_params['name'] + '...'
@@ -395,7 +395,7 @@ class Gameclient():
         self.evaluation_metric['total_reward_per_round'] = []
 
         if select_rand:
-            Epsil = 0
+            Epsil = 1
             states = []
         else: Epsil = 0.05
 
@@ -447,13 +447,16 @@ class Gameclient():
  
             totalmoves += j
 
-        self.evaluation_metric['avg_rewards_per_epoch'].append(np.mean(self.evaluation_metric['total_reward_per_round']))
-        plt.figure(3)
-        plt.title('Average Reward on ' + self.game_params["name"])
-        plt.xlabel('Training Epochs')
-        plt.ylabel('Average Reward per Episode.')
-        plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_rewards_per_epoch'], 'b')
-        plt.draw()
+        print 'avgmoves', totalmoves / rounds
+        print 'avgscore', totalscore / rounds
+
+        #self.evaluation_metric['avg_rewards_per_epoch'].append(np.mean(self.evaluation_metric['total_reward_per_round']))
+        #plt.figure(3)
+        #plt.title('Average Reward on ' + self.game_params["name"])
+        #plt.xlabel('Training Epochs')
+        #plt.ylabel('Average Reward per Episode.')
+        #plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_rewards_per_epoch'], 'b')
+        #plt.draw()
 
         if select_rand:
             states = states[:10000]
