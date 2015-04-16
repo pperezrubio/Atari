@@ -461,7 +461,7 @@ class Gameclient():
         if select_rand:
             states = states[:10000]
             print 'Selected random states:', str(len(states))
-            return states
+            return np.array(states)
             #return [random.choice(states) for i in range(100)]
               
 
