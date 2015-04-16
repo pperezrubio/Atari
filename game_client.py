@@ -29,11 +29,11 @@ from mlp import *
 import qnn
 
 #TODO:
-# Add reporting for average q-values per epoch.
-# Add reporting for average rewards per epoch.
-# Add reporting for q-value per frame.
-# Add reporting for average score per episode of testing.
-# Modify evaluation functions.
+# Add reporting for average q-values per epoch. DONE
+# Add reporting for average rewards per epoch. DONE
+# Add reporting for q-value per frame. DONE
+# Add reporting for average score per episode of testing. DONE
+# Modify evaluation functions. DONE
 # Add code to view states (code to view q-values will be in reporting).
 
 
@@ -108,8 +108,7 @@ class Gameclient():
         Train agent on the ALE environment.
         """
 
-        rand_states = []
-        #TODO: Get rand states here.
+        rand_states = self.evalute_agent(testcount=100, select_rand=1 )
 
         for epoch in xrange(self.agent_params['no_epochs']):
 
@@ -167,7 +166,7 @@ class Gameclient():
             # Further train the agent on its experiences.
             self.replay(self.agent_params['replay_rounds'])
 
-            # Evaluste agent's performance
+            # Evaluate agent's performance
             self.evaluate_avg_qvals(rand_states)
             self.evaluate_agent(testcount = 1000)
 
@@ -311,11 +310,16 @@ class Gameclient():
 
         print 'AVG OPTIMAL Q-VALUE:', avgqvs
 
-    def evaluate_agent(self, testcount = 500): #TODO: Run agent for fixed episodes and add graph for rewards and qval in a frame
+    def evaluate_agent(self, testcount = 500, select_rand=0): #TODO: Run agent for fixed episodes and add graph for rewards and qval in a frame
         rounds = 0
         totalmoves = 0
         totalscore = 0
         score = 0
+
+        if select_rand:
+            Epsil = 0
+            states = []
+        else: Epsil = 0.05
 
         for i in range(testcount):
 
@@ -326,6 +330,8 @@ class Gameclient():
             str_in = self.fin.readline()
             self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
             self.fout.flush()
+
+            frames = []
 
             while 1:
                 str_in = self.fin.readline()
@@ -344,13 +350,15 @@ class Gameclient():
                     self.fout.flush()
                     break
 
-                k_frames.append(f)
+                frames.append(f)
+                if len(frames) > self.agent_params['state_frames']: frames.pop(0)
 
-                if j % self.agent_params['state_frames'] == 0:
-                    s = self.re(k_frames)
-                    a = self.get_agent_action(s, epoch,useEp=0.05)
-                    k_frames = []
+                phi_sprime = self.preprocess_state(frames)
 
+                a = self.get_agent_action(phi_sprime, epoch, useEp=Epsil)
+
+                if select_rand: states.append(phi_sprime)
+             
                 mapped_a = self.map_agentmoves(a)
                 self.fout.write(self.ale_params['moveregex'] % mapped_a[0]) 
                 self.fout.flush()
@@ -358,6 +366,10 @@ class Gameclient():
                 j += 1
  
             totalmoves += j
+
+
+        if select_rand:
+            return [random.choice(states) for i in range(100)]
 
         print 'AVG NUM MOVES:', float(totalmoves)/rounds
         print 'AVG SCORE:', float(totalscore)/rounds
