@@ -23,8 +23,9 @@ import matplotlib
 
 sys.path.append('../')
 
-from mlp import *
 import qnn
+import util
+from mlp import *
 from game_client import Gameclient
 
 
@@ -51,122 +52,112 @@ ale_param = {
     'display_state': True
 }
 
-pong = {
-
-    # Game specific
-    'name': 'Ale Pong',
-
-    # moves list
-    'moves': [3,4],
-
-    # down sample factor
-    'factor': (8,8),
-
-    # index to crop
-    'crop_start': 10880,
-    'crop_end': 62080,
-    
-    'crop_wid': 160,
-    'crop_hei': 160,
-
-
-    # reward
-    'pos_rwd_max': 1,
-    'neg_rwd_max': 1,
-
-    # Maximum number of moves in one episode
-    'maxframes': 10000
-}
-
-spaceinvaders = {
-
-    # Game specific
-    'name': 'Ale Space Invaders',
-
-    # moves list
-    'moves': [0,1,3,4,11,12],
-
-    # down sample factor
-    'factor': (8,8),
-
-    # index to crop
-    'crop_start': 8640, #2240
-    'crop_end': 59840,
-    
-    'crop_wid': 160,
-    'crop_hei': 160,
-
-    # reward
-    'pos_rwd_max': 200,
-    'neg_rwd_max': 1,
-
-    # Maximum number of moves in one episode
-    'maxframes': 10000
-}
-
-breakout = {
-
-    # Game specific
-    'name': 'alebreakout',
-
-    # moves list
-    'moves': [0,1,3,4],
-
-    # down sample factor
-    'factor': (8,8),
-
-    # index to crop
-    'crop_start': 9600,
-    'crop_end': 60800,
-    
-    'crop_wid': 160,
-    'crop_hei': 160,
-
-    # reward
-    'pos_rwd_max': 2,
-    'neg_rwd_max': 1,
-
-    # Maximum number of moves in one episode
-    'maxframes': 10000
-}
-
-seaquest = {
-
-    # Game specific
-    'name': 'aleseaquest',
-
-    # moves list
-    'moves': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17],
-
-    # down sample factor
-    'factor': (8,8),
-
-    # index to crop
-    'crop_start': 8320,
-    'crop_end': 59520,
-    
-    'crop_wid': 160,
-    'crop_hei': 160,
-
-    # reward
-    'pos_rwd_max': 20,
-    'neg_rwd_max': 1,
-
-    # Maximum number of moves in one episode
-    'maxframes': 10000
-}
-
-
-
-
 game_param = {
-    'pong':pong,
-    'spaceinvaders': spaceinvaders,
-    'breakout': breakout,
-    'seaquest': seaquest
+
+    'pong': {
+
+        # Game specific
+        'name': 'Ale Pong',
+
+        # moves list
+        'moves': [2, 5],
+
+        # down sample factor
+        'factor': (8,8),
+
+        # index to crop
+        'crop_start': 10880,
+        'crop_end': 62080,
+        
+        'crop_wid': 160,
+        'crop_hei': 160,
+
+        # reward
+        'pos_rwd_max': 1,
+        'neg_rwd_max': 1,
+
+        # Maximum number of moves in one episode
+        'maxframes': 10000
+    },
+
+    'spaceinvaders': {
+
+        # Game specific
+        'name': 'Ale Space Invaders',
+
+        # moves list
+        'moves': [0,1,3,4,11,12],
+
+        # down sample factor
+        'factor': (8,8),
+
+        # index to crop
+        'crop_start': 8640, #2240
+        'crop_end': 59840,
+        
+        'crop_wid': 160,
+        'crop_hei': 160,
+
+        # reward
+        'pos_rwd_max': 200,
+        'neg_rwd_max': 1,
+
+        # Maximum number of moves in one episode
+        'maxframes': 10000
+    },
+
+    'breakout': {
+
+        # Game specific
+        'name': 'Ale Breakout',
+
+        # moves list
+        'moves': [0,1,3,4],
+
+        # down sample factor
+        'factor': (8,8),
+
+        # index to crop
+        'crop_start': 9600,
+        'crop_end': 60800,
+        
+        'crop_wid': 160,
+        'crop_hei': 160,
+
+        # reward
+        'pos_rwd_max': 2,
+        'neg_rwd_max': 1,
+
+        # Maximum number of moves in one episode
+        'maxframes': 10000
+    },
+
+    'seaquest': {
+
+        # Game specific
+        'name': 'Ale Seaquest',
+
+        # moves list
+        'moves': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17],
+
+        # down sample factor
+        'factor': (8,8),
+
+        # index to crop
+        'crop_start': 8320,
+        'crop_end': 59520,
+    
+        'crop_wid': 160,
+        'crop_hei': 160,
+
+        # reward
+        'pos_rwd_max': 20,
+        'neg_rwd_max': 1,
+
+        # Maximum number of moves in one episode
+        'maxframes': 10000
+    }
 }
-
-
 
 agent_param = {
 
@@ -244,7 +235,8 @@ class ALEclient(Gameclient):
 
 if __name__ == '__main__':
 
-    ale = ALEclient(aleparams=ale_param, gameparams=game_param['spaceinvaders'], agentparams=agent_param)
+    # Additionally, load bin for selected game in run.sh !!!
+    ale = ALEclient(aleparams=ale_param, gameparams=game_param['pong'], agentparams=agent_param)
 
     time1 = time.time()
     ale.train()

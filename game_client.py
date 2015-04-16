@@ -26,12 +26,13 @@ import math
 from copy import deepcopy
 import matplotlib.pyplot as plt
 
-from mlp import *
 import qnn
+import util
+from mlp import *
 
 #TODO: Add reporting for q-value per frame.
 
-ale_legal_moves = {
+ale_available_moves = {
     0  : 'noop',
     1  : 'fire',
     2  : 'up',
@@ -131,10 +132,10 @@ class Gameclient():
 
         # get random states
         print 'Getting set of states to hold out...'
-        rand_states = self.evaluate_agent(testcount=10, select_rand=0)
+        #rand_states = self.evaluate_agent(testcount=10, select_rand=0)
         self.reset_metrics()
 
-        print 'Training agent on ALE ' + self.agent_params['name'] + '...'
+        print 'Training agent on ALE ' + self.game_params['name'] + '...'
         for epoch in xrange(self.agent_params['no_epochs']):
 
             self.evaluation_metric['epoch'].append(epoch)
@@ -159,12 +160,12 @@ class Gameclient():
 
             for i in xrange(self.game_params['maxframes'] - 1):
 
-                print 'Epoch: ' + epoch + ' , Move: ' + i + '.'
+                print 'Epoch: ' + str(epoch) + ' , Move: ' + str(i) + '.'
                 
                 # send action to ale
                 action = self.get_agent_action(phi_s, epoch)
                 mapped_a = self.map_agent_moves(action)
-                print 'Selected action: ' + ale_available_moves['mapped_a'] + '.'
+                print 'Selected action: ' + ale_available_moves[mapped_a[0]] + '.'
                 self.fout.write(self.ale_params['moveregex'] %  mapped_a[0]) 
                 self.fout.flush()
 
@@ -268,7 +269,7 @@ class Gameclient():
         #Else exploit
         print 'Executing policy based action.'
         qvals = self.qnn.predict(states)
-        print qvals #Sub with print matrix later on.
+        #print qvals #Sub with print matrix later on.
         if self.agent_params['maximise']:
             nn_moves = np.argmax(qvals, axis=1)
         else:
@@ -304,7 +305,7 @@ class Gameclient():
         batch_size = self.agent_params['batch_size']
 
         for i in xrange(rounds):
-            print 'Performing round ' + i + ' of experience replay on mini-batch size of ' + batch_size + '.'
+            print 'Performing round ' + str(i) + ' of experience replay on mini-batch size of ' + str(batch_size) + '.'
             states, nxt_states, actions, rewards, conts = [], [], [], [], []
             keys = [random.choice(self.ERM.keys()) for i in xrange(batch_size)]
 
@@ -456,7 +457,7 @@ class Gameclient():
 
         if select_rand:
             states = states[:10000]
-            print 'Selected random states:', len(states)
+            print 'Selected random states:', str(len(states))
             return states
             #return [random.choice(states) for i in range(100)]
               
