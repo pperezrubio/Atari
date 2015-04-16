@@ -54,7 +54,7 @@ ale_param = {
 pong = {
 
     # Game specific
-    'game': 'alepong',
+    'name': 'Ale Pong',
 
     # moves list
     'moves': [3,4],
@@ -84,7 +84,7 @@ pong = {
 spaceinvaders = {
 
     # Game specific
-    'game': 'alespaceinvaders',
+    'name': 'Ale Space Invaders',
 
     # moves list
     'moves': [0,1,3,4,11,12],

@@ -29,13 +29,7 @@ import matplotlib.pyplot as plt
 from mlp import *
 import qnn
 
-#TODO:
-# Add reporting for average q-values per epoch. DONE
-# Add reporting for average rewards per epoch. DONE
-# Add reporting for q-value per frame. DONE
-# Add reporting for average score per episode of testing. DONE
-# Modify evaluation functions. DONE
-# Add code to view states (code to view q-values will be in reporting).
+#TODO: Add reporting for q-value per frame.
 
 
 class Gameclient():
@@ -81,11 +75,9 @@ class Gameclient():
 
             'avg_qvals_per_epoch' : [],
 
-            'latest_epoch_rewards' : [],
-            'avg_rewards_per_epoch' : [],
+            'total_reward_per_round':[],
 
-            'total_reward_per_test_round':[],
-            'avg_rewards_over_test': []
+            'avg_rewards_per_epoch' : []
         }
 
 
@@ -139,12 +131,6 @@ class Gameclient():
                 continue
 
             for i in xrange(self.game_params['maxframes'] - 1):
-
-                if self.ale_params['display_state']:
-                    s = state[len(state) - 1].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
-                    plt.clf()
-                    
-
                 
                 # send action to ale
                 action = self.get_agent_action(phi_s, epoch)
@@ -182,13 +168,8 @@ class Gameclient():
             self.experience_replay(self.agent_params['replay_rounds'])
 
             # Evaluate agent's performance
-            # Predict average q vals
+            self.evaluation_metric['epoch'].append(epoch)
             avg_qval = self.evaluate_avg_qvals(rand_states)
-            #self.evaluation_metric['avg_qvals_per_epoch'].append(avg_qval)
-            #Do axis ish and all that
-            #plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_qvals_per_epoch'], 'r-')
-            #plt.draw()
-
             self.evaluate_agent(testcount = 1000)
 
 
@@ -215,6 +196,13 @@ class Gameclient():
         x = tn.dtensor3('x')
         f = thn.function([x], downsample.max_pool_2d(x, self.game_params['factor']))
         downsampled = f(maxed)
+
+        if self.ale_params['display_state']:
+            s = downsampled[-1].reshape(self.game_params['crop_hei'], self.game_params['crop_wid'])
+            plt.figure(1)
+            plt.clf()
+            plt.imshow(s, 'gray')
+            plt.pause(0.5)
         
         return downsampled.reshape(1, np.prod(downsampled.shape[0:])) #Stack
 
@@ -318,13 +306,6 @@ class Gameclient():
         return r
 
 
-    def display_img(self, fr): #TODO: Embed in train() to show downsampled view of states.
-
-        plt.imshow(img)
-        plt.gray()
-        plt.show()
-
-
     def reset_metrics(self):
 
         self.evaluation_metric = {
@@ -333,13 +314,10 @@ class Gameclient():
 
             'avg_qvals_per_epoch' : [],
 
-            'latest_epoch_rewards' : [],
-            'avg_rewards_per_epoch' : [],
+            'total_reward_per_round':[],
 
-            'total_reward_per_test_round':[],
-            'avg_rewards_over_test': []
+            'avg_rewards_per_epoch' : []
         }
-
 
 
     def evaluate_avg_qvals(self, states, minmax=np.max):
@@ -354,14 +332,22 @@ class Gameclient():
         --------
             Average Q-values over states.
         """ 
-        return np.mean(minmax(self.qnn.predict(states), axis=1))
+        avg_qval = np.mean(minmax(self.qnn.predict(states), axis=1))
+        self.evaluation_metric['avg_qvals_per_epoch'].append(avg_qval)
+        plt.figure(2)
+        plt.title('Average Q on ' + self.game_params["name"])
+        plt.xlabel('Training Epochs')
+        plt.ylabel('Average Action Value (Q)')
+        plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_qvals_per_epoch'], 'b')
+        plt.draw()
 
 
-    def evaluate_agent(self, testcount = 500, select_rand=0): #TODO: Run agent for fixed episodes and add graph for rewards and qval in a frame
+    def evaluate_agent(self, testcount = 500, select_rand=0):
         rounds = 0
         totalmoves = 0
         totalscore = 0
         score = 0
+        self.evaluation_metric['total_reward_per_round'] = []
 
         if select_rand:
             Epsil = 0
@@ -378,7 +364,7 @@ class Gameclient():
             self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
             self.fout.flush()
 
-            frames = [np.zeros((self.game_params['crop_hei']*self.game_params['crop_wid']))  for i in range(self.agent_params['state_frames']+1)]
+            frames = [np.zeros((self.game_params['crop_hei'] * self.game_params['crop_wid']))  for i in range(self.agent_params['state_frames']+1)]
 
             while 1:
                 str_in = self.fin.readline()
@@ -392,6 +378,7 @@ class Gameclient():
                     if j > 0:
                         rounds += 1
                         totalscore += score
+                        self.evaluation_metric['total_reward_per_round'].append(score)
                     
                     self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
                     self.fout.flush()
@@ -415,12 +402,16 @@ class Gameclient():
  
             totalmoves += j
 
+        self.evaluation_metric['avg_rewards_per_epoch'].append(np.mean(self.evaluation_metric['total_reward_per_round']))
+        plt.figure(3)
+        plt.title('Average Reward on ' + self.game_params["name"])
+        plt.xlabel('Training Epochs')
+        plt.ylabel('Average Reward per Episode.')
+        plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_rewards_per_epoch'], 'b')
+        plt.draw()
 
         if select_rand:
             return [random.choice(states) for i in range(100)]
-
-        print 'AVG NUM MOVES:', float(totalmoves)/rounds
-        print 'AVG SCORE:', float(totalscore)/rounds
               
 
 
