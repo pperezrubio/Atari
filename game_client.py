@@ -51,6 +51,9 @@ class Gameclient():
         
         self.header = self.handshake()
 
+        # Calculating inputs to qnn
+        gameparams['state_features'] = (gameparams['crop_hei']/gameparams['factor'][0]) * (gameparams['crop_wid']/gameparams['factor'][1]) * agentparams['state_frames']
+
         #Construct agent
         if agentparams['hidden_layers'] == 0:
             layers = [PerceptronLayer(len(gameparams['moves']), gameparams['state_features'], agentparams['out'])]
@@ -104,7 +107,7 @@ class Gameclient():
         """
 
         # get random states
-        #rand_states = self.evaluate_agent(testcount=100, select_rand=1 )
+        rand_states = self.evaluate_agent(testcount=10, select_rand=1 )
         self.reset_metrics()
         #plt.ion()
 
@@ -144,7 +147,7 @@ class Gameclient():
                 frame, reward, term = self.parse(response)
                 
                 # append observed frame to sequence of frames to make next state
-                next_state = state[0 : self.agent_params['state_frames'] - 1] + frame
+                next_state = state[-self.agent_params['state_frames']+1:] + [frame]
 
                 phi_sprime = self.preprocess_state(next_state)
                 cont = True
@@ -343,6 +346,14 @@ class Gameclient():
 
 
     def evaluate_agent(self, testcount = 500, select_rand=0):
+        """Evaluate performance of agent using optimal policy (with epsilon=0.05). Also use
+           to pick random states for evaluation of q values to gauge network performance.
+
+        Args:
+        -----
+            testcount: no. of episode to run
+            select_rand: boolean. whether or not to collect random states
+        """
         rounds = 0
         totalmoves = 0
         totalscore = 0
@@ -364,7 +375,7 @@ class Gameclient():
             self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
             self.fout.flush()
 
-            frames = [np.zeros((self.game_params['crop_hei'] * self.game_params['crop_wid']))  for i in range(self.agent_params['state_frames']+1)]
+            frames = [np.zeros((self.game_params['crop_hei']*self.game_params['crop_wid']))  for i in range(self.agent_params['state_frames'])]
 
             while 1:
                 str_in = self.fin.readline()
@@ -386,7 +397,7 @@ class Gameclient():
 
                 # shift frame window
                 frames.append(f)
-                if len(frames) > self.agent_params['state_frames']+1: frames.pop(0)
+                if len(frames) > self.agent_params['state_frames']: frames.pop(0)
 
                 phi_sprime = self.preprocess_state(frames)
 
@@ -411,7 +422,10 @@ class Gameclient():
         plt.draw()
 
         if select_rand:
-            return [random.choice(states) for i in range(100)]
+            states = states[:10000]
+            print 'Selected random states:', len(states)
+            return states
+            #return [random.choice(states) for i in range(100)]
               
 
 
