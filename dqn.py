@@ -18,15 +18,42 @@ from util import *
 from copy import deepcopy
 
 
-class Qlearn():
+class Dqn(Mlp, Cnn):
 	"""
-	Q learning module.
+	A deep Q neural network.
 	"""
 
-	def direct_train(self, s, s_prime, a, r, gamma, cont, hyperparams, minmax=np.max):
+	def __init__(self, layers):
 		"""
-		Train a variant of Q networks using the direct algorithm for
-		Q learning.
+		Initialize the Qnn.
+
+		Args:
+		-----
+			layers: List of layers arranged heirarchically.
+		"""
+
+		self.layers_old = []
+
+		if type(layers).__name__ == 'list':
+
+			Mlp.__init__(self, layers)
+
+			for layer in layers:
+				self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
+
+		elif type(layers).__name__ == 'dict':
+
+			Cnn.__init__(self, layers)
+
+			for layer in layers['fully-connected']:
+				self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
+			for layer in layers['convolutional']:
+				self.layers_old.append(ConvLayer(layer.kernels.shape[0], layer.kernels.shape[1:], layer.pfctr, layer.no_in))
+
+
+	def train(self, s, s_prime, a, r, gamma, cont, hyperparameters, minmax=np.max):
+		"""
+		Train the qnn using stochastic gradient.
 
 		Args:
 		----
@@ -57,42 +84,5 @@ class Qlearn():
 		dE[np.arange(dE.shape[0]), a] = qs[np.arange(qs.shape[0]), a] - r - (gamma * cont * minmax(qs_prime, axis=1))
 		self.backprop(dE)
 		self.update(hyperparams)
-
-
-class Qnn(Mlp, Qlearn):
-	"""
-	A Q neural network.
-	"""
-
-	def __init__(self, layers):
-		"""
-		Initialize the Qnn.
-
-		Args:
-		-----
-			layers: List of mlp layers arranged heirarchically.
-		"""
-		Mlp.__init__(self, layers)
-
-		self.layers_old = []
-		for layer in self.layers:
-			self.layers_old.append(PerceptronLayer(layer.w.shape[0], layer.w.shape[1], layer.o_type))
-
-
-	def train(self, s, s_prime, a, r, gamma, cont, hyperparameters, minmax=np.max):
-		"""
-		Train the qnn using stochastic gradient.
-
-		Args:
-		----
-			s 	: A no_states x no_feats array repr different states s.
-			s_prime : The no_states x no_feats array repr the next state from states s.
-			a 	: A no_states vector of actions taken at states s.
-			r 	: A no_states vector of rewards gotten by taking an action at states s.
-			gamma : The discount factor for future rewards.
-			cont : A no_states boolean vector indicating if the next states from states s is not terminal.
-			minmax : Use max or min Q values for a next state.
-			hyperparams : A dictionary of training parameters.
-		"""
-		
-		self.direct_train(s, s_prime, a, r, gamma, cont, hyperparameters, minmax)
+		#print "Q val", qs
+		#print "Gradient", dE

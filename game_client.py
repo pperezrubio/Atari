@@ -132,16 +132,14 @@ class Gameclient():
 
         # get random states
         print 'Getting set of states to hold out...'
-        rand_states = self.evaluate_agent(testcount=1, select_rand=1 )
+        rand_states = self.evaluate_agent(testcount=1, select_rand=1, test=False)
         self.reset_metrics()
 
         print 'Training agent on ALE ' + self.game_params['name'] + '...'
         for epoch in xrange(self.agent_params['no_epochs']):
 
-            self.evaluation_metric['epoch'].append(epoch)
-
             # restart game
-            str_in = self.fin.readline()
+            self.fin.readline()
             self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) # send in reset signal
             self.fout.flush()
 
@@ -166,7 +164,8 @@ class Gameclient():
                 action = self.get_agent_action(phi_s, epoch)
                 mapped_a = self.map_agent_moves(action)
                 print 'Selected action: ' + ale_available_moves[mapped_a[0]] + '.'
-                self.fout.write(self.ale_params['moveregex'] %  mapped_a[0]) 
+                string_b = '%d,' + str(self.map_agent_moves([random.randint(0, 1)])[0]) + '\n'
+                self.fout.write(string_b %  mapped_a[0])
                 self.fout.flush()
 
                 # get next frame
@@ -175,7 +174,10 @@ class Gameclient():
                 frame, reward, term = self.parse(response)
                 
                 # append observed frame to sequence of frames to make next state
-                next_state = state[-self.agent_params['state_frames']+1:] + [frame]
+                if self.agent_params['state_frames'] == 1:
+                    next_state = [frame]
+                else:
+                    next_state = state[-self.agent_params['state_frames']+1:] + [frame]
 
                 phi_sprime = self.preprocess_state(next_state)
                 cont = True
@@ -189,7 +191,8 @@ class Gameclient():
 
                 phi_s, state = phi_sprime, next_state
 
-                if term or i == self.game_params['maxframes']-1:
+                print "Start"
+                if term or i == self.game_params['maxframes'] - 2:
                     # Terminal state
                     self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
                     self.fout.flush()
@@ -200,8 +203,15 @@ class Gameclient():
 
             # Evaluate agent's performance
             self.evaluation_metric['epoch'].append(epoch)
-            avg_qval = self.evaluate_avg_qvals(rand_states)
-            self.evaluate_agent(testcount = 1000)
+            self.evaluate_avg_qvals(rand_states)
+            self.evaluate_agent(testcount=1)
+
+        plt.figure(2)
+        plt.savefig('average_q_vals.png')
+        plt.close()
+        plt.figure(3)
+        plt.savefig('average_rewards_per_epoch.png')
+        plt.close()
 
 
     def preprocess_state(self, state): #TODO: Display to cross check.
@@ -234,7 +244,7 @@ class Gameclient():
             plt.figure(1)
             plt.clf()
             plt.imshow(s, 'gray')
-            plt.pause(0.01)
+            plt.pause(0.005)
         
         return downsampled.reshape(1, np.prod(downsampled.shape[0:])) #Stack
 
@@ -269,7 +279,7 @@ class Gameclient():
         #Else exploit
         print 'Executing policy based action.'
         qvals = self.qnn.predict(states)
-        #print qvals #Sub with print matrix later on.
+        print qvals #Sub with print matrix later on.
         if self.agent_params['maximise']:
             nn_moves = np.argmax(qvals, axis=1)
         else:
@@ -304,6 +314,9 @@ class Gameclient():
         """
         batch_size = self.agent_params['batch_size']
 
+        if len(self.ERM.keys()) < batch_size:
+            batch_size = len(self.ERM.keys())
+
         for i in xrange(rounds):
             print 'Performing round ' + str(i) + ' of experience replay on mini-batch size of ' + str(batch_size) + '.'
             states, nxt_states, actions, rewards, conts = [], [], [], [], []
@@ -312,7 +325,6 @@ class Gameclient():
             for key in keys:
                 phi_s, action, phi_sprime = key
                 reward, cont = self.ERM[key]
-
                 states.append(phi_s)
                 nxt_states.append(phi_sprime)
                 actions.append(action)
@@ -367,19 +379,23 @@ class Gameclient():
         Returns:
         --------
             Average Q-values over states.
-        """ 
+        """
         print 'Evaluating average Q value for held out states...'
         avg_qval = np.mean(minmax(self.qnn.predict(states), axis=1))
         self.evaluation_metric['avg_qvals_per_epoch'].append(avg_qval)
+        print avg_qval
         plt.figure(2)
         plt.title('Average Q on ' + self.game_params["name"])
         plt.xlabel('Training Epochs')
         plt.ylabel('Average Action Value (Q)')
-        plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_qvals_per_epoch'], 'b')
+        plt.axis([0, self.agent_params['no_epochs'], 0, 6.0])
+        print len(self.evaluation_metric['epoch'])
+        print len(self.evaluation_metric['avg_qvals_per_epoch'])
+        plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_qvals_per_epoch'], 'k')
         plt.draw()
 
 
-    def evaluate_agent(self, testcount = 500, select_rand=0):
+    def evaluate_agent(self, testcount=1, select_rand=0, test=True):
         """Evaluate performance of agent using optimal policy (with epsilon=0.05). Also use
            to pick random states for evaluation of q values to gauge network performance.
 
@@ -392,7 +408,6 @@ class Gameclient():
         totalmoves = 0
         totalscore = 0
         score = 0
-        self.evaluation_metric['total_reward_per_round'] = []
 
         if select_rand:
             Epsil = 1
@@ -403,6 +418,7 @@ class Gameclient():
 
             j = 0
             score = 0
+            self.evaluation_metric['total_reward_per_round'] = []
 
             # restart game
             str_in = self.fin.readline()
@@ -423,7 +439,6 @@ class Gameclient():
                     if j > 0:
                         rounds += 1
                         totalscore += score
-                        self.evaluation_metric['total_reward_per_round'].append(score)
                     
                     self.fout.write(self.ale_params['moveregex'] % self.ale_params['reset']) 
                     self.fout.flush()
@@ -437,7 +452,7 @@ class Gameclient():
 
                 a = self.get_agent_action(phi_sprime, 0, useEpsilon=Epsil)
 
-                if select_rand: states.append(phi_sprime)
+                if select_rand: states.append(phi_sprime.ravel())
              
                 mapped_a = self.map_agent_moves(a)
                 self.fout.write(self.ale_params['moveregex'] % mapped_a[0]) 
@@ -447,21 +462,25 @@ class Gameclient():
  
             totalmoves += j
 
-        print 'avgmoves', totalmoves / rounds
-        print 'avgscore', totalscore / rounds
+            self.evaluation_metric['total_reward_per_round'].append(score)
+            print "Test round " + str(i) + ', ' + str(score) + '.'
 
-        #self.evaluation_metric['avg_rewards_per_epoch'].append(np.mean(self.evaluation_metric['total_reward_per_round']))
-        #plt.figure(3)
-        #plt.title('Average Reward on ' + self.game_params["name"])
-        #plt.xlabel('Training Epochs')
-        #plt.ylabel('Average Reward per Episode.')
-        #plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_rewards_per_epoch'], 'b')
-        #plt.draw()
+        if test:
+            self.evaluation_metric['avg_rewards_per_epoch'].append(np.mean(self.evaluation_metric['total_reward_per_round']))
+            plt.figure(3)
+            plt.title('Average Reward on ' + self.game_params["name"])
+            plt.xlabel('Training Epochs')
+            plt.ylabel('Average Reward per Episode.')
+            plt.axis([0, self.agent_params['no_epochs'], -30, 30])
+            print len(self.evaluation_metric['epoch'])
+            print len(self.evaluation_metric['avg_rewards_per_epoch'])
+            plt.plot(self.evaluation_metric['epoch'], self.evaluation_metric['avg_rewards_per_epoch'], 'k')
+            plt.draw()
 
         if select_rand:
             states = states[:10000]
             print 'Selected random states:', str(len(states))
-            return states
+            return np.asarray(states)#.reshape(len(states), 1024)
             #return [random.choice(states) for i in range(100)]
               
 

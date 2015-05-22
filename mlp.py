@@ -107,7 +107,7 @@ class PerceptronLayer():
 	A perceptron layer.
 	"""
 
-	def __init__(self, no_outputs, no_inputs, outputType="sigmoid"):
+	def __init__(self, no_outputs, no_inputs, outputType="tanh"):
 		"""
 		Initialize fully connected layer.
 
@@ -122,9 +122,10 @@ class PerceptronLayer():
 			self.w = (6.0/(no_outputs + no_inputs)) * np.random.randn(no_outputs, no_inputs)
 		else:
 			self.w = 0.01 * np.random.randn(no_outputs, no_inputs)
+			
 		self.b = 0.01 * np.random.randn(no_outputs, 1)
-		if no_outputs <= 2:
-			self.o_type = "sigmoid"
+		#if no_outputs <= 2:
+			#self.o_type = "sigmoid"
 
 		self.rms = [np.zeros(self.w.shape), np.zeros(self.b.shape), 0]
 
@@ -164,6 +165,10 @@ class PerceptronLayer():
 		Update the weights in this layer.
 		"""
 		m, N = self.x.shape
+		#print "Before RMS. Shape: ", self.dEdw.shape
+		#print "\n"
+		#printMatrix(self.dEdw)
+		#print "\n"
 		self.dEdw = self.dEdw / N
 		self.dEdb = self.dEdb / N		
 
@@ -184,6 +189,24 @@ class PerceptronLayer():
 			self.rms[2] = self.rms[2] + 1
 			self.rms[0] = rmsw
 			self.rms[1] = rmsb
+
+		#print "RMS", n
+		#printMatrix(rmsw)
+
+		#print "After RMS. Shape: ", self.dEdw.shape
+		#print "\n"
+		#printMatrix(self.dEdw)
+		#print "\n"
+
+		#print "Weight. Shape: ", self.w.shape
+		#print "\n"
+		#printMatrix(self.w)
+		#print "\n"
+
+		#print "Weight update. Shape: ", self.dEdw.shape
+		#print "\n"
+		#printMatrix(lr * self.dEdw)
+		#print "\n"
 
 		#Update weights
 		self.w = self.w - (lr * self.dEdw)
