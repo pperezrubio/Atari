@@ -481,7 +481,6 @@ class Gameclient():
             states = states[:10000]
             print 'Selected random states:', str(len(states))
             return np.asarray(states)#.reshape(len(states), 1024)
-            #return [random.choice(states) for i in range(100)]
               
 
 
